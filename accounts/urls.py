@@ -9,6 +9,5 @@ urlpatterns = [
     path('send-reset-password-email/', SendPasswordResetEmailView.as_view(), name='send-reset-password-email'),
     path('reset-password/<uid>/<token>/', UserPasswordResetView.as_view(), name='reset-password'),
     path('verify-email/<str:uidb64>/<str:token>/', EmailVerificationView.as_view(), name='email_verification'),
-   # path('api/auth/google/url/', google_login_url, name='google_login_url'),
 
     ]

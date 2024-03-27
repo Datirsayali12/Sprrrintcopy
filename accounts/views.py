@@ -17,11 +17,6 @@ from django.utils.encoding import force_bytes,  force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from .models import User
 
-
-# def google_login_url(request):
-#     url = reverse('socialaccount_signup', args=['google'])
-#     return JsonResponse({'url': request.build_absolute_uri(url)})
-
 def get_tokens_for_user(user):
   refresh = RefreshToken.for_user(user)
   return {
@@ -39,10 +34,10 @@ class UserRegistrationView(APIView):
             token = default_token_generator.make_token(user)
 
            
-            current_site = get_current_site(request)
-            domain = current_site.domain
+            # current_site = get_current_site(request)
+            # domain = current_site.domain
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+            verification_url = f'http://127.0.0.1:8000{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
           
             subject = 'Verify Your Email Address'
             message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
@@ -67,7 +62,7 @@ class CreatorRegistrationView(APIView):
             current_site = get_current_site(request)
             domain = current_site.domain
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+            verification_url = f'http://127.0.0.1:8000{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
           
             subject = 'Verify Your Email Address'
             message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
@@ -93,6 +88,8 @@ class EmailVerificationView(APIView):
         return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
     
 
+
+
 class UserLoginView(APIView):
   renderer_classes = [UserRenderer]
   def post(self, request, format=None):
@@ -116,7 +113,7 @@ class UserProfileView(APIView):
 
 
 class UserChangePasswordView(APIView):
-  renderer_classes = [UserRenderer]  
+  renderer_classes = [UserRenderer]  # Assuming UserRenderer is defined elsewhere
   permission_classes = [IsAuthenticated]
 
   def post(self, request, format=None):
@@ -138,10 +135,6 @@ class UserPasswordResetView(APIView):
     serializer = UserPasswordResetSerializer(data=request.data, context={'uid':uid, 'token':token})
     serializer.is_valid(raise_exception=True)
     return Response({'msg':'Password Reset Successfully'}, status=status.HTTP_200_OK)
-  
-
-
-
 
 
 
