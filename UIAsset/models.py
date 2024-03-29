@@ -1,14 +1,6 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from django.conf import settings
 
-# Create your models here.
-
-from django.db import models
-
-# Create your models here.
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -61,13 +53,21 @@ class AssetType(models.Model):
     def __str__(self):
         return self.type
 
+class Image(models.Model):
+    url=models.URLField(help_text="for product asset Image URLs")
+    is_hero_img=models.BooleanField(default=False)
+    asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
+                                   help_text='This will store file like - jpg, mp4')
+    updated_at = models.DateField(auto_now=True)
+    created_at = models.DateField(auto_now_add=True)
 
 
 
-class Product(models.Model):
+
+
+class Pack(models.Model):
     title = models.CharField(max_length=255, help_text="this will store product title")
     credits = models.IntegerField(default=0,help_text="this for credits")
-    # hero_img_url = models.URLField(help_text="for product_card main image") # s3 bucket file url
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
     category = models.ForeignKey(Category, on_delete=models.CASCADE, help_text="for category of product")
@@ -79,32 +79,62 @@ class Product(models.Model):
     tag = models.ManyToManyField(Tag, help_text="for tag name of product")
     no_of_items = models.IntegerField(default=0,help_text="number of items in product")
     is_free = models.BooleanField(default=False,help_text="if product free or paid")
+    is_active=models.BooleanField(default=True)
+    is_approved=models.BooleanField(default=False)
+    base_price=models.IntegerField(default=0,help_text="this for base price")
+    discount_price=models.IntegerField(default=0,help_text="this for discount price")
+    image= models.ManyToManyField(Image,help_text="for thumbnail images")
+   
+   
+
 
     def __str__(self):
         return self.title
+    
+class AssetTag(models.Model):
+    name = models.CharField(max_length=255, help_text="this for tag name")
+    updated_at = models.DateField(auto_now=True)
+    created_at = models.DateField(auto_now_add=True)
 
+    def __str__(self):
+        return self.name
+    
+
+    
 
 class Asset(models.Model):
     name = models.CharField(max_length=255, help_text="this for Asset name")
-    product = models.ForeignKey(Product,on_delete=models.SET_NULL, null=True,
+    pack= models.ForeignKey(Pack,on_delete=models.SET_NULL, null=True,
                                 help_text="this indicate that asset relate to particular product")
-    asset = models.URLField(help_text="for product asset URLs")
-    asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
-                                   help_text='This will store file like - jpg, mp4')
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
-    meta_tag = models.CharField(max_length=255, help_text="meta description/tag etc for seo")
-    is_hero_img = models.BooleanField(help_text="to check if asset is hero image or video")
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
     is_free=models.BooleanField(default=False)
     credits=models.IntegerField(default=0,help_text="this for credits")
+    is_active=models.BooleanField(default=True)
+    tag=models.ManyToManyField(AssetTag, help_text="for tag name of asset")
+    image= models.ManyToManyField(Image)
+   
+
+
+class AssetFile(models.Model):
+    url=models.URLField(help_text="for product asset URLs")
+    #meta_tag = models.CharField(max_length=255, help_text="meta description/tag etc for seo")
+    is_hero_img=models.BooleanField(default=False)
+    asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
+                                   help_text='This will store file like - jpg, mp4')
+    updated_at = models.DateField(auto_now=True)
+    created_at = models.DateField(auto_now_add=True)
+    asset=models.ForeignKey(Asset,on_delete=models.CASCADE)
+
+
 
 
 class SavedProduct(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              help_text="this refer particular user that saved items")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE,
+    pack = models.ForeignKey(Pack, on_delete=models.CASCADE,
                                 help_text="this refers particular product that saved")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -119,10 +149,10 @@ class SavedSingleAsset(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
-class ProductDownload(models.Model):
+class PackDownload(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              help_text="refer to user that download product")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, help_text="refer to product that download")
+    pack = models.ForeignKey(Pack, on_delete=models.CASCADE, help_text="refer to product that download")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -224,7 +254,7 @@ class TransactionType(models.Model):
         return self.name
 
 
-class ProductTransaction(models.Model):
+class PackTransaction(models.Model):
     credit_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
                                         help_text="for credit amount of product")
     debit_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,
@@ -232,7 +262,7 @@ class ProductTransaction(models.Model):
     tran_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE,
                                   help_text="refer transaction type i.e purchase ,sale etc.")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, help_text="refer particular user")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True,
+    pack = models.ForeignKey(Pack, on_delete=models.CASCADE, null=True, blank=True,
                                 help_text="for refer product", )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

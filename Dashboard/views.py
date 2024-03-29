@@ -1,42 +1,209 @@
 from rest_framework.decorators import api_view,permission_classes
-from UIAsset.models import Asset, ProductType ,Product,Tag
+from UIAsset.models import Asset, ProductType ,Pack,Tag,AssetType,AssetTag,AssetFile,Image
 from django.http import JsonResponse
 from Learn.models import *
 from django.db.models import Sum
 from rest_framework.response import Response
+from django.db.models.functions import Length
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ObjectDoesNotExist
+from accounts.models import *
+from django.utils import timezone
+from django.forms.models import model_to_dict
+
+# @api_view(['POST'])
+# def upload_product(request):
+#     if request.method == 'POST':
+#         u=User.objects.first()
+#         c=Category.objects.first()
+#         s=Subcategory.objects.first()
+#         pt=ProductType.objects.first()
+
+#         p = Pack()
+#         p.title="tag3"
+#         p.credits=0
+#         p.creator=u
+#         p.category=c 
+#         p.subcategory=s
+#         p.product_type=pt  
+#         p.no_of_items=0 
+#         p.is_free=False 
+#         p.is_active=True
+#         p.is_approved=False
+#         p.base_price=0
+#         p.discount_price=0
+#         p.save()
+#         tag_instance = Tag.objects.create(name="tag_name")  
+#         p.tag.add(tag_instance)
+#         p.save()
+#         image_instance = Image.objects.first()
+#         p.image.add(image_instance)
+#         p.save()
+
+#         assettag=AssetTag.objects.create(name="tag1")
+
+#         data={
+#             "assets": [
+#             {
+#                 "name": "Asset 1",
+#                 "is_free": False,
+#                 "credits": 20,
+#                 "is_active": True,
+#                 "tags": ["tag1", "tag2"],
+#                 "image_urls": ["http://example.com/image1.jpg", "http://example.com/image2.jpg"]
+#             },
+#             {
+#                 "name": "Asset 2",
+#                 "is_free": True,
+#                 "credits": 10,
+#                 "is_active": True,
+#                 "tags": ["tag3", "tag4"],
+#                 "image_urls": ["http://example.com/image3.jpg", "http://example.com/image4.jpg"]
+#             }
+#             ]
+#         }
+
+#         assettype=AssetType.objects.first()
+
+#         assets_data=data.get('assets', [])
+
+
+#         for asset_data in assets_data:
+#                 asset = Asset()
+#                 asset.name = asset_data['name']
+#                 asset.pack = p
+#                 asset.creator = u 
+#                 asset.is_free = asset_data['is_free']
+#                 asset.credits = asset_data['credits']
+#                 asset.is_active = asset_data['is_active']
+#                 asset.save()
+
+#                 tags_data = asset_data.get('tags', [])
+#                 for tag_name in tags_data:
+#                     tag, _ = AssetTag.objects.get_or_create(name="tag3")
+#                     asset.tag.add(tag)
+
+#                 image_urls = asset_data.get('image_urls', [])
+#                 for image_url in image_urls:
+#                     image, created = Image.objects.get_or_create(
+#                     url="http://example.com/image3.jpg",
+#                     is_hero_img=False,  
+#                     asset_type=assettype,  
+#                     )
+#                     asset.image.add(image)
+
+#         return JsonResponse({'msg': 'Product and asset created successfully '}, status=200)   
+
+
+
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
 def upload_product(request):
-    if request.method == 'POST':
-        product_data = request.data.get('product')
-        try:
-            product = Product.objects.create(
-                title=product_data['title'],
-                #credits=product_data['credits'],
-                creator_id=request.user.id,
-                category_id=product_data['category'],
-                subcategory_id=product_data['subcategory'],
-                product_type_id=product_data['product_type'],
-                #no_of_items=product_data['no_of_items'],
-                #is_free=product_data['is_free'],
-            )
-            product.tag.set(product_data['tag'])
+        data = request.data
+        u = User.objects.first()
+       
+           
 
-            return JsonResponse({"message": "Product uploaded successfully", "product_id": product.id})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-    else:
-        return JsonResponse({"error": "Method not allowed"}, status=405)
+        pack_data = data.get('pack', {})
+        category = Category.objects.get(id=pack_data['category_id'])
+        subcategory = Subcategory.objects.get(id=pack_data['subcategory_id'])
+        product_type = ProductType.objects.get(id=pack_data['product_type_id'])
+
+
+        pack = Pack.objects.create(
+            title=pack_data['title'],
+            creator=u,
+            category=category,
+            subcategory=subcategory,
+            product_type=product_type,
+            no_of_items=pack_data['no_of_items'],
+            is_free=pack_data['is_free'],
+            is_active=pack_data['is_active'],
+            is_approved=pack_data['is_approved'],
+            base_price=pack_data['base_price'],
+            discount_price=pack_data['discount_price']
+
+        )
+      
+
+        for tag_id in pack_data.get('tagids', []):
+            tag = Tag.objects.create(name=tag_id)
+            pack.tag.add(tag)
+
+        # pack.tag.add(tag_instance)
+        
+       
+        images_data = pack_data.get('images', [])
+       
+        for image_data in images_data:
+            asset_type, created = AssetType.objects.get_or_create(type=image_data['asset_type'])
+            image= Image.objects.create(
+                url=image_data['url'],
+                is_hero_img=image_data['is_hero_img'],
+                asset_type=asset_type
+            )
+            pack.image.add(image)
+        pack.save()
+
+        assets_data=data.get('assets', [])
+
+
+        for asset_data in assets_data:
+                asset = Asset()
+                asset.name = asset_data['name']
+                asset.pack = pack
+                asset.creator = u 
+                asset.is_free = asset_data['is_free']
+                asset.credits = asset_data['credits']
+                asset.is_active = asset_data['is_active']
+                asset.save()
+
+                tags_data = asset_data.get('tags', [])
+                for tag_name in tags_data:
+                    tag, _ = AssetTag.objects.get_or_create(name=tag_name)
+                    asset.tag.add(tag)
+
+                    image_urls = asset_data.get('image_urls', [])
+                    for image_data in image_urls:
+                        image, created = Image.objects.get_or_create(
+                            url=image_data['url'],
+                            is_hero_img=image_data['is_hero_img'],
+                            asset_type=image_data['asset_type']
+                        )
+                        asset.image.add(image)
+
+        total_assets = Asset.objects.filter(pack=pack).count()
+        total_credits = Asset.objects.filter(pack=pack).aggregate(total_credits=Sum('credits'))['total_credits'] or 0
+        pack.is_free = total_credits == 0
+        pack.no_of_items = total_assets
+        pack.credits = total_credits
+        print(total_assets)
+        print(total_credits)
+        pack.save()
+
+        return JsonResponse({'msg': 'Product and asset created successfully '}, status=200)   
+
+
+      
+        
+
+
+
+       
+       
+
+
+
+
+
+
 
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def update_product(request, product_id):
     try:
-        product = Product.objects.get(id=product_id)
+        product = Pack.objects.get(id=product_id)
 
         product_data = request.data.get('product')
         product.title = product_data.get('title', product.title)
@@ -59,7 +226,7 @@ def update_product(request, product_id):
                 product.tag.add(tag)
 
         return JsonResponse({"message": "Product updated successfully"})
-    except Product.DoesNotExist:
+    except Pack.DoesNotExist:
         return JsonResponse({"error": "Product not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
@@ -74,7 +241,7 @@ def upload_assets(request, product_id):
             product_id = int(product_id)
             asset_data = request.data.get('assets')
 
-            product = Product.objects.get(id=product_id)
+            product = Pack.objects.get(id=product_id)
             is_free = asset_item['credits'] == 0
 
             for asset_item in asset_data:
@@ -95,7 +262,7 @@ def upload_assets(request, product_id):
             total_credits = Asset.objects.filter(product=product).aggregate(total_credits=Sum('credits'))['total_credits'] or 0
 
           
-            product.no_of_items = total_assets
+            product.no_of_items = total_assets# not updated
             product.credits = total_credits
             product.is_free = total_credits == 0
             product.save()
@@ -112,10 +279,10 @@ def upload_assets(request, product_id):
 @permission_classes([IsAuthenticated])
 def delete_product(request, product_id):
     try:
-        product = Product.objects.get(id=product_id)
+        product = Pack.objects.get(id=product_id)
         product.delete()
         return JsonResponse({"message": "Product deleted successfully"})
-    except Product.DoesNotExist:
+    except Pack.DoesNotExist:
         return JsonResponse({"error": "Product not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
@@ -132,7 +299,7 @@ def upload_product_and_assets(request):
             asset_data = request.data.get('assets')
             user = request.user
 
-            product = Product.objects.create(
+            product = Pack.objects.create(
                 title=product_data['title'],
                 creator_id=user.id,
                 category_id=product_data['category'],
