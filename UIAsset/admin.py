@@ -24,7 +24,7 @@ class AssetTagAdmin(admin.ModelAdmin):
 
 @admin.register(AssetFile)
 class AssetFileAdmin(admin.ModelAdmin):
-    list_display = ('url', 'is_hero_img', 'asset_type')
+    list_display = ('url', 'asset_type')
 
 @admin.register(Image)
 class ImageAdmin(admin.ModelAdmin):

@@ -3,6 +3,7 @@ from django.conf import settings
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 
 
 # -----------------For product---------------------------------
@@ -62,9 +63,6 @@ class Image(models.Model):
     created_at = models.DateField(auto_now_add=True)
 
 
-
-
-
 class Pack(models.Model):
     title = models.CharField(max_length=255, help_text="this will store product title")
     credits = models.IntegerField(default=0,help_text="this for credits")
@@ -84,6 +82,13 @@ class Pack(models.Model):
     base_price=models.IntegerField(default=0,help_text="this for base price")
     discount_price=models.IntegerField(default=0,help_text="this for discount price")
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
+
+
+    # def save(self, *args, **kwargs):
+    #     existing_pack = Pack.objects.filter(title=self.title).first()
+    #     if existing_pack:
+    #         raise ValidationError('Product with the same title already exists')
+    #     super().save(*args, **kwargs)
    
    
 
@@ -100,6 +105,14 @@ class AssetTag(models.Model):
         return self.name
     
 
+class AssetFile(models.Model):
+    url=models.URLField(help_text="for product asset URLs")
+    asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
+                                   help_text='This will store file like - jpg, mp4')
+    updated_at = models.DateField(auto_now=True)
+    created_at = models.DateField(auto_now_add=True)
+    
+
     
 
 class Asset(models.Model):
@@ -114,22 +127,9 @@ class Asset(models.Model):
     credits=models.IntegerField(default=0,help_text="this for credits")
     is_active=models.BooleanField(default=True)
     tag=models.ManyToManyField(AssetTag, help_text="for tag name of asset")
-    image= models.ManyToManyField(Image)
+    asset_file= models.ManyToManyField(AssetFile)
    
-
-
-class AssetFile(models.Model):
-    url=models.URLField(help_text="for product asset URLs")
-    #meta_tag = models.CharField(max_length=255, help_text="meta description/tag etc for seo")
-    is_hero_img=models.BooleanField(default=False)
-    asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
-                                   help_text='This will store file like - jpg, mp4')
-    updated_at = models.DateField(auto_now=True)
-    created_at = models.DateField(auto_now_add=True)
-    asset=models.ForeignKey(Asset,on_delete=models.CASCADE)
-
-
-
+   
 
 class SavedProduct(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
