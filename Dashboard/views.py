@@ -236,63 +236,80 @@ def upload_asset(request):
     else:
         return JsonResponse({'error': 'Please provide a file to upload.'}, status=400)
 
+
+
+@api_view(['POST'])
+def upload_pack(request):  
+    data = request.data
+    print(data)
+    u = User.objects.first()
+
+    pack_data = data.get('pack', {})
+
+    category_id = request.POST.get('category_id')
+    category = Category.objects.get(pk=category_id)
+
+    subcategory_id = request.POST.get('subcategory_id')
+    subcategory = Subcategory.objects.get(pk=subcategory_id)
+
+    product_type_id = request.POST.get('product_type_id')
+    product_type = ProductType.objects.get(pk=product_type_id)
+   
+    pack_image_objects = []
+    for uploaded_file in request.FILES.getlist('images'):
+        file_name = generate_unique_filename(uploaded_file.name)
+        file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+
+        print(file_path)
+
+        with open(file_path, 'wb+') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+        asset_type, _ = AssetType.objects.get_or_create(type='Image')
+        image_object = Image.objects.create(url=file_url, asset_type=asset_type)
+        pack_image_objects.append(image_object)
+
+    pack = Pack(
+        title=request.POST.get('title'),
+        creator=u,
+        category=category,
+        subcategory=subcategory,
+        product_type=product_type,
+        base_price=request.POST.get('base_price'),
+        discount_price=request.POST.get('discount_price')
+    )
+    pack.save()
+
+    for tag_id in pack_data.get('tagids', []):
+        tag, _ = Tag.objects.get_or_create(name=tag_id)
+        pack.tag.add(tag)
+
+    pack.image.add(*pack_image_objects)
+    pack.save()
+
+    print(pack.id)
+
+    asset_ids = request.POST.getlist('asset_ids') 
+
+    print(asset_ids)
+
+    if asset_ids: 
+        for asset_id in asset_ids:
+            try:
+                asset = Asset.objects.get(id=asset_id)
+                asset.pack = pack
+                asset.save()
+            except Asset.DoesNotExist:
+                pass
+          
+    return JsonResponse({'message': 'pack created successfully'})
+
 def generate_unique_filename(filename):
     import uuid
     _, ext = os.path.splitext(filename)
     return f"{uuid.uuid4()}{ext}"
-
-
-
-
-
-# @api_view(['POST'])
-# def upload_pack(request):  
-#     data = request.data
-#     u = User.objects.first()
-
-#     pack_data = data.get('pack', {})
-#     category = Category.objects.first()
-#     subcategory = Subcategory.objects.first()
-#     product_type=ProductType.objects.first()
-   
-#     pack_image_objects = []
-#     for uploaded_file in request.FILES.getlist('images'):
-#         file_name = generate_unique_filename(uploaded_file.name)
-#         file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-#         with open(file_path, 'wb+') as destination:
-#             for chunk in uploaded_file.chunks():
-#                 destination.write(chunk)
-
-#         file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-#         asset_type, _ = AssetType.objects.get_or_create(type='Image')
-#         image_object = Image.objects.create(url=file_url, asset_type=asset_type)
-#         pack_image_objects.append(image_object)
-
-#     pack = Pack(
-#         title=request.POST.get('title'),
-#         creator=u,
-#         category=category,
-#         subcategory=subcategory ,
-#         product_type=product_type,
-#         base_price=request.POST.get('base_price'),
-#         discount_price=request.POST.get('discount_price')
-#     )
-#     pack.save()
-
-#     for tag_id in pack_data.get('tagids', []):
-#         tag, _ = Tag.objects.get_or_create(name=tag_id)
-#         pack.tag.add(tag)
-
-#     pack.image.add(*pack_image_objects)
-#     pack.save()
-
-#     return JsonResponse({'message': 'Asset uploaded successfully.', 'url': file_url})
-    
-
-# def generate_unique_filename(filename):
-#     import uuid
-#     _, ext = os.path.splitext(filename)
-#     return f"{uuid.uuid4()}{ext}"
 
 
    

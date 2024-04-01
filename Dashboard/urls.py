@@ -15,5 +15,5 @@ urlpatterns=[
     path('get_tags/',views.get_tag_and_category),
     path('get_all_data/<str:product_type>/',views.get_all_data),
     path('upload-asset/',views.upload_asset),
-    #path('upload_pack/',views.upload_pack)
+    path('upload_pack/',views.upload_pack)
 ]
