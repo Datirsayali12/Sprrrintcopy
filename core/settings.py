@@ -27,8 +27,7 @@ SECRET_KEY = 'django-insecure-f2i4*8rvlvn(ed!%ejdu$n=l$%366d#85sac#ub&#yf@(a)onf
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-#client_id:131067264441-5oi3u9kjsid2p8u1qkd9o2tic1d4fnk4.apps.googleusercontent.com
-#sceret_key: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
+
 
 ALLOWED_HOSTS = [
 ]
@@ -177,8 +176,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.User'
@@ -210,6 +209,7 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',
 
 }
+
 
 
 

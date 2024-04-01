@@ -27,4 +27,4 @@ urlpatterns = [
     path('get-course-review/<int:course_id>', views.get_course_reviews),
     path('get-ebook-review/<int:ebook_id>', views.get_ebook_reviews)
 
-]
+]#+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

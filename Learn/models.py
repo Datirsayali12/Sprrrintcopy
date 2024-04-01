@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.conf import settings
 
-from UIAsset.models import Subcategory, Asset, Product, TransactionType, Category
+from UIAsset.models import Subcategory, Asset, Pack, TransactionType, Category
 
 
 # Create your models here.

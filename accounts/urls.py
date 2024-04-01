@@ -1,4 +1,6 @@
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 from .views import UserRegistrationView,UserLoginView,UserProfileView,UserChangePasswordView,SendPasswordResetEmailView,UserPasswordResetView,CreatorRegistrationView,EmailVerificationView
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
@@ -9,6 +11,5 @@ urlpatterns = [
     path('send-reset-password-email/', SendPasswordResetEmailView.as_view(), name='send-reset-password-email'),
     path('reset-password/<uid>/<token>/', UserPasswordResetView.as_view(), name='reset-password'),
     path('verify-email/<str:uidb64>/<str:token>/', EmailVerificationView.as_view(), name='email_verification'),
-   # path('api/auth/google/url/', google_login_url, name='google_login_url'),
 
-    ]
+    ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
