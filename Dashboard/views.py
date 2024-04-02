@@ -193,8 +193,8 @@ def delete_product(request, product_id):
 @api_view(['POST'])
 #@permission_classes([IsAuthenticated])
 def upload_asset(request):
-    if request.method == 'POST' and request.FILES.get('file'):
-        uploaded_file = request.FILES['file']
+    if request.method == 'POST' and request.FILES.get('image'):
+        uploaded_file= request.FILES['image']
 
         file_name = generate_unique_filename(uploaded_file.name)
         file_path = os.path.join(settings.MEDIA_ROOT, file_name)
@@ -203,10 +203,28 @@ def upload_asset(request):
                 destination.write(chunk)
 
         file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+        image= Image.objects.create(url=file_url, asset_type_id=1)
+
+
+        pack_image_objects = []
+        uploaded_files= request.FILES.getlist('files')
+        print(uploaded_files)
+
+        for uploaded_file in uploaded_files:
+            file_name = generate_unique_filename(uploaded_file.name)
+            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+
+            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+            
         
-      
-        asset_type_id = request.POST.get('asset_type_id') 
-        asset_file= AssetFile.objects.create(url=file_url, asset_type_id=asset_type_id)
+            asset_file= AssetFile.objects.create(url=file_url, asset_type_id=1)
+            pack_image_objects.append(asset_file)
+
+        
+
 
       
         P=Pack()
@@ -219,18 +237,34 @@ def upload_asset(request):
             creator_id=user.id,
             credits=request.POST.get('credits', 0),
             is_active=request.POST.get('is_active', False),
-            is_free=request.POST.get('credits', 0) == 0
+            is_free=request.POST.get('credits', 0) == 0,
+        
         )
 
     
-        asset.asset_file.add(asset_file)
+        asset.image.add(image)
+        print(pack_image_objects)
+        asset.asset_file.add(*pack_image_objects)
+        asset.save()
         asset_id=asset.id
         file_id=asset_file.id
+
+      
       
         tag_names = request.POST.getlist('tags', [])
-        for tag_name in tag_names:
+        t=tag_names[0]
+        ts=t.strip('[]')
+        tag=ts.split(',')
+
+
+        for tag_name in tag:
             tag, _ = AssetTag.objects.get_or_create(name=tag_name)
             asset.tag.add(tag)
+
+
+        print(tag_names[0])
+        print(type(tag_names[0]))
+        print(type(tag_names[0][0]))
 
         return JsonResponse({'message': 'Asset uploaded successfully.', 'url': file_url,'asset_id':asset_id,"file_id":file_id})
     else:
@@ -243,6 +277,7 @@ def upload_pack(request):
     data = request.data
     print(data)
     u = User.objects.first()
+    print(request.FILES)
 
     pack_data = data.get('pack', {})
 
@@ -256,20 +291,21 @@ def upload_pack(request):
     product_type = ProductType.objects.get(pk=product_type_id)
    
     pack_image_objects = []
-    for uploaded_file in request.FILES.getlist('images'):
+    uploaded_files= request.FILES.getlist('hero_images')
+    print(uploaded_files)
+
+    for uploaded_file in uploaded_files:
         file_name = generate_unique_filename(uploaded_file.name)
         file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-
-        print(file_path)
-
         with open(file_path, 'wb+') as destination:
             for chunk in uploaded_file.chunks():
                 destination.write(chunk)
 
         file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-        asset_type, _ = AssetType.objects.get_or_create(type='Image')
-        image_object = Image.objects.create(url=file_url, asset_type=asset_type)
-        pack_image_objects.append(image_object)
+        
+      
+        asset_file= Image.objects.create(url=file_url, asset_type_id=1)
+        pack_image_objects.append(asset_file)
 
     pack = Pack(
         title=request.POST.get('title'),
@@ -282,18 +318,15 @@ def upload_pack(request):
     )
     pack.save()
 
-    for tag_id in pack_data.get('tagids', []):
-        tag, _ = Tag.objects.get_or_create(name=tag_id)
-        pack.tag.add(tag)
-
-    pack.image.add(*pack_image_objects)
-    pack.save()
+    
 
     print(pack.id)
 
-    asset_ids = request.POST.getlist('asset_ids') 
+    asset_ids1 = request.POST.getlist('asset_ids') 
+    t=asset_ids1[0]
+    ts=t.strip('[]')
+    asset_ids=ts.split(',')
 
-    print(asset_ids)
 
     if asset_ids: 
         for asset_id in asset_ids:
@@ -303,6 +336,18 @@ def upload_pack(request):
                 asset.save()
             except Asset.DoesNotExist:
                 pass
+
+    tag_names = request.POST.getlist('tags', [])
+    t=tag_names[0]
+    ts=t.strip('[]')
+    tag=ts.split(',')
+
+    for tag_name in tag:
+        tag, _ = Tag.objects.get_or_create(name=tag_name)
+        pack.tag.add(tag)
+
+    pack.image.add(*pack_image_objects)
+    pack.save()
           
     return JsonResponse({'message': 'pack created successfully'})
 
@@ -311,6 +356,3 @@ def generate_unique_filename(filename):
     _, ext = os.path.splitext(filename)
     return f"{uuid.uuid4()}{ext}"
 
-
-   
-    

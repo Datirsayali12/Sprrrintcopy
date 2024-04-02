@@ -128,6 +128,7 @@ class Asset(models.Model):
     is_active=models.BooleanField(default=True)
     tag=models.ManyToManyField(AssetTag, help_text="for tag name of asset")
     asset_file= models.ManyToManyField(AssetFile)
+    image= models.ManyToManyField(Image,help_text="for thumbnail images")
    
    
 
