@@ -194,7 +194,29 @@ def delete_product(request, product_id):
 #@permission_classes([IsAuthenticated])
 def upload_asset(request):
     if request.method == 'POST' and request.FILES.get('image'):
+        print(request.data)
         uploaded_file= request.FILES['image']
+        required_fields = ['name']
+
+        for field in required_fields:
+            if field not in request.POST or not request.POST[field]:
+                return JsonResponse({'error': f'{field} is required'}, status=400)
+            
+        if not request.FILES.getlist('image'):
+            return JsonResponse({'error': 'Thumbnail image is required'}, status=400)
+      
+      
+        credits = request.POST.get('credits', 0)
+        if not credits.isdigit() or int(credits) < 0:
+            return JsonResponse({'error': 'Credits must be a non-negative integer'}, status=400)
+
+        is_active = request.POST.get('is_active', '').lower()
+        if is_active not in ['true', 'false']:
+            return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
+
+      
+
+
 
         file_name = generate_unique_filename(uploaded_file.name)
         file_path = os.path.join(settings.MEDIA_ROOT, file_name)
@@ -204,11 +226,13 @@ def upload_asset(request):
 
         file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
         image= Image.objects.create(url=file_url, asset_type_id=1)
+        print(image)
 
 
         pack_image_objects = []
         uploaded_files= request.FILES.getlist('files')
         print(uploaded_files)
+        
 
         for uploaded_file in uploaded_files:
             file_name = generate_unique_filename(uploaded_file.name)
@@ -241,7 +265,7 @@ def upload_asset(request):
         
         )
 
-    
+      
         asset.image.add(image)
         print(pack_image_objects)
         asset.asset_file.add(*pack_image_objects)
@@ -249,7 +273,12 @@ def upload_asset(request):
         asset_id=asset.id
         file_id=asset_file.id
 
-      
+
+
+        tag_names = request.POST.getlist('tags', [])
+        if not tag_names:
+            return JsonResponse({'error': 'At least one tag is required'}, status=400)
+
       
         tag_names = request.POST.getlist('tags', [])
         t=tag_names[0]
@@ -262,9 +291,6 @@ def upload_asset(request):
             asset.tag.add(tag)
 
 
-        print(tag_names[0])
-        print(type(tag_names[0]))
-        print(type(tag_names[0][0]))
 
         return JsonResponse({'message': 'Asset uploaded successfully.', 'url': file_url,'asset_id':asset_id,"file_id":file_id})
     else:
@@ -277,9 +303,24 @@ def upload_pack(request):
     data = request.data
     print(data)
     u = User.objects.first()
-    print(request.FILES)
 
-    pack_data = data.get('pack', {})
+    required_fields = ['title', 'category_id', 'subcategory_id', 'product_type_id', 'base_price', 'discount_price', 'hero_images', 'tags']
+    for field in required_fields:
+        if field not in request.data:
+            return JsonResponse({'error': f'{field} is required'}, status=400)
+
+  
+    numeric_fields = ['category_id', 'subcategory_id', 'product_type_id', 'base_price', 'discount_price']
+    for field in numeric_fields:
+        if not str(request.data.get(field)).isdigit():
+            return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
+
+   
+    if 'hero_images' not in request.FILES or not request.FILES.getlist('hero_images'):
+        return JsonResponse({'error': 'At least one hero image is required'}, status=400)
+
+
+    
 
     category_id = request.POST.get('category_id')
     category = Category.objects.get(pk=category_id)
@@ -292,7 +333,9 @@ def upload_pack(request):
    
     pack_image_objects = []
     uploaded_files= request.FILES.getlist('hero_images')
-    print(uploaded_files)
+
+   
+ 
 
     for uploaded_file in uploaded_files:
         file_name = generate_unique_filename(uploaded_file.name)
@@ -306,6 +349,11 @@ def upload_pack(request):
       
         asset_file= Image.objects.create(url=file_url, asset_type_id=1)
         pack_image_objects.append(asset_file)
+
+    title = data.get('title')
+    if Pack.objects.filter(title=title).exists():
+        return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
+
 
     pack = Pack(
         title=request.POST.get('title'),
@@ -327,6 +375,9 @@ def upload_pack(request):
     ts=t.strip('[]')
     asset_ids=ts.split(',')
 
+    if not asset_ids:
+        return JsonResponse({'error': 'asset_ids required'}, status=400)
+
 
     if asset_ids: 
         for asset_id in asset_ids:
@@ -337,7 +388,9 @@ def upload_pack(request):
             except Asset.DoesNotExist:
                 pass
 
+    
     tag_names = request.POST.getlist('tags', [])
+   
     t=tag_names[0]
     ts=t.strip('[]')
     tag=ts.split(',')
