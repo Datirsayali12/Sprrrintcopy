@@ -13,6 +13,7 @@ from django.forms.models import model_to_dict
 from django.db.models import Sum
 from django.views.decorators.csrf import csrf_exempt
 import os
+from rest_framework import status
 
 # @api_view(['POST'])
 # def upload_product(request):
@@ -177,17 +178,17 @@ def get_tag_and_category(request):
 
 
 @api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 def delete_product(request, product_id):
     try:
         product = Pack.objects.get(id=product_id)
-        product.delete()
-        return JsonResponse({"message": "Product deleted successfully"})
+        product.is_active= False
+        product.save()
+        return JsonResponse({"message": "Product soft deleted successfully"})
     except Pack.DoesNotExist:
-        return JsonResponse({"error": "Product not found"}, status=404)
+        return JsonResponse({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-    
+        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -248,7 +249,8 @@ def upload_asset(request):
             pack_image_objects.append(asset_file)
 
         
-
+        category_id = request.POST.get('category_id')
+        category = Category.objects.get(pk=category_id)
 
       
         P=Pack()
@@ -260,6 +262,7 @@ def upload_asset(request):
             pack_id=P,
             creator_id=user.id,
             credits=request.POST.get('credits', 0),
+            category=category,
             is_active=request.POST.get('is_active', False),
             is_free=request.POST.get('credits', 0) == 0,
         
@@ -375,6 +378,8 @@ def upload_pack(request):
     ts=t.strip('[]')
     asset_ids=ts.split(',')
 
+
+
     if not asset_ids:
         return JsonResponse({'error': 'asset_ids required'}, status=400)
 
@@ -408,4 +413,178 @@ def generate_unique_filename(filename):
     import uuid
     _, ext = os.path.splitext(filename)
     return f"{uuid.uuid4()}{ext}"
+
+
+
+@api_view(['POST'])  
+def get_selected_existing(request): 
+   
+    user = User.objects.first()  
+    data=request.data
+    asset_ids1=data['asset_ids']
+    print(asset_ids1)
+    assets = Asset.objects.filter(id__in=asset_ids1,is_active=True)
+    print(assets)
+
+    all_assets = []
+
+    for asset in assets:
+        data = {
+            "name": asset.name,
+            "credits": asset.credits,
+            "asset_id": asset.id, 
+            "is_active": asset.is_active,
+            "is_free": asset.is_free,
+            "image": list(asset.image.values_list('url', flat=True)), 
+            "tags": list(asset.tag.values_list('name', flat=True)),
+            "asset_file": list(asset.asset_file.values_list('url', flat=True)),  
+        }
+
+        all_assets.append(data)
+
+    return Response({"all_assets": all_assets})
+
+
+
+@api_view(['PUT'])
+#@permission_classes([IsAuthenticated])
+def update_asset(request, asset_id):
+    try:
+        asset = Asset.objects.get(pk=asset_id)
+    except Asset.DoesNotExist:
+        return JsonResponse({'error': 'Asset not found'}, status=404)
+    
+    if request.method == 'PUT' and request.FILES.get('image'):
+        uploaded_image = request.FILES['image']
+        required_fields = ['name', 'credits', 'is_active', 'tags','category_id']
+        
+        for field in required_fields:
+            if field not in request.POST or not request.POST[field]:
+                return JsonResponse({'error': f'{field} is required'}, status=400)
+            
+        credits = request.POST.get('credits', 0)
+        if not credits.isdigit() or int(credits) < 0:
+            return JsonResponse({'error': 'Credits must be a non-negative integer'}, status=400)
+
+        is_active = request.POST.get('is_active', '').lower()
+        if is_active not in ['true', 'false']:
+            return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
+
+     
+        file_name = generate_unique_filename(uploaded_image.name)
+        file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+        with open(file_path, 'wb+') as destination:
+            for chunk in uploaded_image.chunks():
+                destination.write(chunk)
+
+        file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+        new_image = Image.objects.create(url=file_url, asset_type_id=1)
+        
+ 
+        asset.name = request.POST.get('name')
+        asset.credits = credits
+        asset.is_active = is_active == 'true'
+        
+        category_id = request.POST.get('category_id')
+        category = Category.objects.get(pk=category_id)
+        asset.category = category
+        
+        asset.tag.clear()
+        tags = request.POST.getlist('tags', [])
+        t=tags[0]
+        ts=t.strip('[]')
+        tag=ts.split(',')
+        for tag_name in tag:
+            tag_name = tag_name.strip()
+            tag, _ = AssetTag.objects.get_or_create(name=tag_name)
+            asset.tag.add(tag)
+        
+        asset.image.clear()
+        asset.image.add(new_image)
+        
+        asset.save()
+
+        if 'files' in request.FILES:
+            uploaded_files = request.FILES.getlist('files')
+            pack_image_objects = []
+            for uploaded_file in uploaded_files:
+                file_name = generate_unique_filename(uploaded_file.name)
+                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                asset_file = AssetFile.objects.create(url=file_url, asset_type_id=1)
+                pack_image_objects.append(asset_file)
+            asset.asset_file.clear()
+            asset.asset_file.add(*pack_image_objects)
+
+        asset.save()
+        
+        return JsonResponse({'message': 'Asset updated successfully.', 'url': file_url, 'asset_id': asset_id}, status=200)
+    else:
+        return JsonResponse({'error': 'Please provide an image file to update.'}, status=400)
+
+
+@api_view(['GET'])
+def get_packs_by_title(request):
+    title_query = request.GET.get('title', '')  
+    packs = Pack.objects.filter(title__icontains=title_query,is_active=True)
+
+    pack_data=[]
+    
+    for pack in packs:
+            data={
+                'title': pack.title,
+                'credits': pack.credits,
+                'no_of_items': pack.no_of_items,
+                'is_free': pack.is_free,
+                'is_active': pack.is_active,
+                'base_price': pack.base_price,
+                'discount_price': pack.discount_price,
+                'image_urls': [image.url for image in pack.image.all()],
+                'tags': [tag.name for tag in pack.tag.all()]
+            } 
+            pack_data.append(data)
+    
+    return JsonResponse({'packs':pack_data})
+
+@api_view(['GET'])
+def get_pack_data(request):
+ 
+    packs = Pack.objects.filter(is_active=True)
+
+    pack_data=[]
+    
+    for pack in packs:
+            data={
+                'title': pack.title,
+                'credits': pack.credits,
+                'no_of_items': pack.no_of_items,
+                'is_free': pack.is_free,
+                'is_active': pack.is_active,
+                'base_price': pack.base_price,
+                'discount_price': pack.discount_price,
+                'image_urls': [image.url for image in pack.image.all()],
+                'tags': [tag.name for tag in pack.tag.all()]
+            } 
+            pack_data.append(data)
+    
+    return JsonResponse({'packs':pack_data})
+
+
+@api_view(['DELETE'])
+#@permission_classes([IsAuthenticated])
+def delete_asset(request, asset_id):
+    try:
+        product = Asset.objects.get(id=asset_id)
+        Asset.is_active= False
+        product.save()
+        return JsonResponse({"message": "Asset soft deleted successfully"})
+    except Pack.DoesNotExist:
+        return JsonResponse({"error": "Asset not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 

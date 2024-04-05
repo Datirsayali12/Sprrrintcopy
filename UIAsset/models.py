@@ -121,6 +121,7 @@ class Asset(models.Model):
                                 help_text="this indicate that asset relate to particular product")
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, help_text="for category of product")
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
     is_free=models.BooleanField(default=False)
