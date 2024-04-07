@@ -69,7 +69,6 @@ class Pack(models.Model):
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
     category = models.ForeignKey(Category, on_delete=models.CASCADE, help_text="for category of product")
-    subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE, help_text="for sub-category of product")
     product_type = models.ForeignKey(ProductType, on_delete=models.CASCADE,
                                      help_text="for type of product i.e single ,pack")
     created_at = models.DateTimeField(auto_now_add=True)
