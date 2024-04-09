@@ -14,6 +14,7 @@ from django.db.models import Sum
 from django.views.decorators.csrf import csrf_exempt
 import os
 from rest_framework import status
+from django.db.models import Q
 
 
 @api_view(['GET'])
@@ -91,18 +92,18 @@ def upload_asset(request):
                 asset_file = AssetFile.objects.create(url=file_url, asset_type_id=1)
                 file_objects.append(asset_file)
 
-            # Get category
+       
             try:
                 category_id = int(request.POST.get('category_id'))
                 category = Category.objects.get(pk=category_id)
             except (ValueError, Category.DoesNotExist):
                 return JsonResponse({'error': 'Invalid category ID'}, status=400)
 
-            # Create asset
-            user = User.objects.first()  # Assuming any user is acceptable for now
+         
+            user = User.objects.first() 
             asset = Asset.objects.create(
                 name=request.POST.get('name'),
-                pack_id=None,  # Assuming pack is not provided
+                pack_id=None, 
                 creator_id=user.id,
                 credits=int(request.POST.get('credits', 0)),
                 category=category,
@@ -128,7 +129,7 @@ def upload_asset(request):
                 tag, _ = AssetTag.objects.get_or_create(name=tag_name.strip())
                 asset.tag.add(tag)
 
-            # Return success response
+           
             return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id}, status=201)
 
         except ValidationError as e:
@@ -141,21 +142,131 @@ def upload_asset(request):
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
+# @api_view(['POST'])
+# def upload_pack(request):
+#     if request.method != 'POST':
+#         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+#     try:
+#         data = request.data
+#         u = User.objects.first()
+#         print(data)
+
+#         required_fields = ['title', 'category_id', 'base_price', 'discount_price', 'hero_images', 'tags', 'total_assets']
+#         for field in required_fields:
+#             if field not in data:
+#                 return JsonResponse({'error': f'{field} is required'}, status=400)
+
+#         numeric_fields = ['category_id', 'base_price', 'discount_price', 'total_assets']
+#         for field in numeric_fields:
+#             if not str(data.get(field)).isdigit():
+#                 return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
+
+#         if 'hero_images' not in request.FILES or not request.FILES.getlist('hero_images'):
+#             return JsonResponse({'error': 'At least one hero image is required'}, status=400)
+
+#         category_id = data.get('category_id')
+#         category = Category.objects.get(pk=category_id)
+
+        
+
+#         pack_image_objects = []
+#         uploaded_files = request.FILES.getlist('hero_images')
+
+#         for uploaded_file in uploaded_files:
+#             file_name = generate_unique_filename(uploaded_file.name)
+#             file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+#             with open(file_path, 'wb+') as destination:
+#                 for chunk in uploaded_file.chunks():
+#                     destination.write(chunk)
+
+            
+#             # if file_name.endswith(".jpg") :
+#             #     asset_type,is_created=AssetType.objects.get_or_create(name=".jpg")
+#             # elif file_name.endswith(".jpeg") :
+#             #     asset_type,is_created=AssetType.objects.get_or_create(name=".jpeg")
+#             # elif file_name.endswith(".png") :
+#             #     asset_type,is_created=AssetType.objects.get_or_create(name=".png")
+#             # else:
+#             #     return JsonResponse({"msg:Invalid File type"})
+
+#             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+#             asset_file = Image.objects.create(url=file_url)
+#             pack_image_objects.append(asset_file)
+
+#         title = data.get('title')
+#         if Pack.objects.filter(title=title).exists():
+#             return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
+
+#         pack = Pack(
+#             title=data.get('title'),
+#             creator=u,
+#             category=category,
+#            # product_type=product_type_instance,
+#             base_price=data.get('base_price'),
+#             discount_price=data.get('discount_price'),
+#             total_assets=data.get('total_assets')
+#         )
+#         pack.save()
+
+#         # asset_ids = data.get('asset_ids')
+#         # if .objects.filter(title=title).exists():
+#         #     return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
+
+#         # title or credits from where to get to create new asset if chnage made in existing 
+       
+#         asset_ids = data.get('asset_ids') 
+#         print(type(asset_ids))
+#         asset_ids1=asset_ids.split(',')
+#         if asset_ids1: 
+#             for asset_id in asset_ids1:
+#                 try:
+#                     asset = Asset.objects.get(id=int(asset_id))
+#                     pack.assets.add(asset)
+                    
+#                 except Asset.DoesNotExist:
+#                     pass
+#             pack.save()
+
+#         tag_names = data.get('tags', [])
+#         print(tag_names)
+#         tags=tag_names.split(',')
+
+#         print(tags)
+       
+#         for tag_name in tags:
+#             tag, _ = Tag.objects.get_or_create(name=tag_name)
+#             pack.tags.add(tag)
+
+#         print(pack.tags.name)
+
+#         pack.image.add(*pack_image_objects)
+#         pack.save()
+
+#         return JsonResponse({'message': 'Pack created successfully'})
+    
+#     except Exception as e:
+#         return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
 @api_view(['POST'])
 def upload_pack(request):
     if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     try:
         data = request.data
         u = User.objects.first()
+        print(data)
 
-        required_fields = ['title', 'category_id', 'product_type', 'base_price', 'discount_price', 'hero_images', 'tags', 'no_of_items']
+        required_fields = ['title', 'category_id', 'base_price', 'discount_price', 'tags', 'total_assets']
         for field in required_fields:
             if field not in data:
                 return JsonResponse({'error': f'{field} is required'}, status=400)
 
-        numeric_fields = ['category_id', 'base_price', 'discount_price', 'no_of_items']
+        numeric_fields = ['category_id', 'base_price', 'discount_price', 'total_assets']
         for field in numeric_fields:
             if not str(data.get(field)).isdigit():
                 return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
@@ -166,23 +277,7 @@ def upload_pack(request):
         category_id = data.get('category_id')
         category = Category.objects.get(pk=category_id)
 
-        product_type = data.get('product_type')
-        product_type_instance = ProductType.objects.get(type=product_type)
-
-        pack_image_objects = []
-        uploaded_files = request.FILES.getlist('hero_images')
-
-        for uploaded_file in uploaded_files:
-            file_name = generate_unique_filename(uploaded_file.name)
-            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in uploaded_file.chunks():
-                    destination.write(chunk)
-
-            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file = Image.objects.create(url=file_url, asset_type_id=1)
-            pack_image_objects.append(asset_file)
-
+       
         title = data.get('title')
         if Pack.objects.filter(title=title).exists():
             return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
@@ -191,45 +286,54 @@ def upload_pack(request):
             title=data.get('title'),
             creator=u,
             category=category,
-            product_type=product_type_instance,
             base_price=data.get('base_price'),
             discount_price=data.get('discount_price'),
-            no_of_items=data.get('no_of_items')
+            total_assets=data.get('total_assets')
         )
         pack.save()
 
-       
-        asset_ids1 = request.POST.getlist('asset_ids') 
-        t=asset_ids1[0]
-        ts=t.strip('[]')
-        asset_ids=ts.split(',')
+        pack_image_objects = []
+        uploaded_files = request.FILES.getlist('hero_images')
+        for index, uploaded_file in enumerate(uploaded_files):
+            file_name = generate_unique_filename(uploaded_file.name)
+            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
 
-        if asset_ids: 
-            for asset_id in asset_ids:
-                try:
-                    asset = Asset.objects.get(id=asset_id)
-                    asset.pack = pack
-                    asset.save()
-                except Asset.DoesNotExist:
-                    pass
+            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+            asset_file = Image.objects.create(url=file_url, is_hero_img=False)  # Set is_hero_image as needed
 
-        tag_names = data.getlist('tags', [])
-        t=tag_names[0]
-        ts=t.strip('[]')
-        tags=ts.split(',')
+
+            # Update is_hero_image based on the request data
+            is_hero_image_key = f'is_hero_image_{index+1}'
+            is_hero_image_value = data.get('is_hero_image', 'false')
+            if is_hero_image_value.lower() == 'true':
+                asset_file.is_hero_img = True
+            else:
+                asset_file.is_hero_img = False
+            asset_file.save()
+
+            pack.image.add(asset_file)        
             
        
+        for obj in pack_image_objects:
+            pack_image = Image.objects.create(pack=pack, image=obj['asset_file'], is_hero_image=obj['is_hero_img'])
+
+        tag_names = data.get('tags', [])
+        tags = tag_names.split(',')
         for tag_name in tags:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
-            pack.tag.add(tag)
-
-        pack.image.add(*pack_image_objects)
-        pack.save()
+            pack.tags.add(tag)
 
         return JsonResponse({'message': 'Pack created successfully'})
-    
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
     
 
 
@@ -491,7 +595,7 @@ def update_pack(request, pack_id):
         pack.tag.add(tag)
     
 
-    # Update pack details
+ 
     pack.title = data.get('title')
     pack.category = category
     pack.product_type = product_type_instance
@@ -526,6 +630,37 @@ def creating_new_asset_from_existing(request):
             except Asset.DoesNotExist:
                 pass
 
+
+
+
+
+@api_view(['GET'])
+def get_packs_by_title_and_tag(request):
+    title_query = request.GET.get('title', '')
+    tag_query = request.GET.get('tag', '')
+
+    packs = Pack.objects.filter(is_active=True)
+
+    if title_query or tag_query:
+        packs = packs.filter(Q(title__icontains=title_query) | Q(tag__name__icontains=tag_query))
+
+    pack_data = []
+
+    for pack in packs:
+        data = {
+            'title': pack.title,
+            'credits': pack.credits,
+            'no_of_items': pack.no_of_items,
+            'is_free': pack.is_free,
+            'is_active': pack.is_active,
+            'base_price': pack.base_price,
+            'discount_price': pack.discount_price,
+            'image_urls': [image.url for image in pack.image.all()],
+            'tags': [tag.name for tag in pack.tag.all()]
+        }
+        pack_data.append(data)
+
+    return JsonResponse({'packs': pack_data})
 
 
 

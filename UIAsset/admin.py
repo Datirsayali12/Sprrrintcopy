@@ -8,8 +8,8 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_at', 'updated_at')
 
 
-@admin.register(Subcategory)
-class SubcategoryAdmin(admin.ModelAdmin):
+@admin.register(SubCategory)
+class SubCategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_at', 'updated_at')
 
 
@@ -18,9 +18,9 @@ class TagAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_at', 'updated_at')
   
 
-@admin.register(AssetTag)
-class AssetTagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
+# @admin.register(AssetTag)
+# class AssetTagAdmin(admin.ModelAdmin):
+#     list_display = ('name', 'created_at', 'updated_at')
 
 @admin.register(AssetFile)
 class AssetFileAdmin(admin.ModelAdmin):
@@ -28,30 +28,30 @@ class AssetFileAdmin(admin.ModelAdmin):
 
 @admin.register(Image)
 class ImageAdmin(admin.ModelAdmin):
-    list_display = ('url', 'is_hero_img', 'asset_type')
+    list_display = ('url', 'is_hero_img')
 
 
-@admin.register(ProductType)
-class ProductTypeAdmin(admin.ModelAdmin):
-    list_display = ('type', 'created_at', 'updated_at')
+# @admin.register(ProductType)
+# class ProductTypeAdmin(admin.ModelAdmin):
+#     list_display = ('type', 'created_at', 'updated_at')
 
 
 @admin.register(AssetType)
 class AssetTypeAdmin(admin.ModelAdmin):
-    list_display = ('type', 'created_at', 'updated_at')
+    list_display = ('name', 'created_at', 'updated_at')
 
 
 @admin.register(Pack)
 class PackAdmin(admin.ModelAdmin):
-    list_display = ('title', 'credits', 'creator', 'category', 'product_type', 'created_at', 'updated_at')
+    list_display = ('title', 'base_price','discount_price', 'creator', 'category', 'created_at', 'updated_at')
 
 
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
-    list_display = ('pack', 'creator', 'created_at', 'updated_at')
+    list_display = ('creator', 'created_at', 'updated_at')
 
 
-@admin.register(SavedProduct)
+@admin.register(SavedPack)
 class SavedProductAdmin(admin.ModelAdmin):
     list_display = ('user', 'pack', 'created_at', 'updated_at')
 
@@ -113,5 +113,5 @@ class PackTransactionAdmin(admin.ModelAdmin):
     list_display = ('credit_amount', 'debit_amount', 'tran_type', 'user', 'pack', 'created_at', 'updated_at')
 
 
-admin.site.register(SavedSingleAsset)
+admin.site.register(SavedAsset)
 admin.site.register(Subscribe)

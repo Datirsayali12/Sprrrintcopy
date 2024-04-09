@@ -17,7 +17,7 @@ class Category(models.Model):
         return self.name
 
 
-class Subcategory(models.Model):
+class SubCategory(models.Model):
     name = models.CharField(max_length=255, help_text="this will store sub category name")
     categories = models.ManyToManyField(Category, help_text="manyTOmany field with subcategory")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -36,51 +36,79 @@ class Tag(models.Model):
         return self.name
 
 
-class ProductType(models.Model):
-    type = models.CharField(max_length=100, unique=True,
-                            help_text="this will store product type like: single, pack, kit,template")
-    updated_at = models.DateField(auto_now=True)
-    created_at = models.DateField(auto_now_add=True)
+# class ProductType(models.Model):
+#     type = models.CharField(max_length=100, unique=True,
+#                             help_text="this will store product type like: single, pack, kit,template")
+#     updated_at = models.DateField(auto_now=True)
+#     created_at = models.DateField(auto_now_add=True)
 
-    def __str__(self):
-        return self.type
+#     def __str__(self):
+#         return self.type
 
 
 class AssetType(models.Model):
-    type = models.CharField(max_length=255, help_text="this will store Asset type like:jpg,png,mp4 ")
+    name = models.CharField(max_length=255, help_text="this will store Asset type like:jpg,png,mp4 ")
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
 
     def __str__(self):
-        return self.type
+        return self.name
 
 class Image(models.Model):
-    url=models.URLField(help_text="for product asset Image URLs")
-    is_hero_img=models.BooleanField(default=False)
+    url=models.URLField(unique=True,help_text="for product asset Image URLs")
+    is_hero_img=models.BooleanField(default=False,help_text="indicate which image is hero_image from all images")
+    # asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
+                                   #help_text='This will store file like - jpg, mp4')
+    updated_at = models.DateField(auto_now=True)
+    created_at = models.DateField(auto_now_add=True)
+
+    
+
+class AssetFile(models.Model):
+    url=models.URLField(help_text="for product asset URLs")
     asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
                                    help_text='This will store file like - jpg, mp4')
     updated_at = models.DateField(auto_now=True)
     created_at = models.DateField(auto_now_add=True)
+    
+
+class Asset(models.Model):
+    name = models.CharField(max_length=255, help_text="this for Asset name")
+    #pack= models.ForeignKey(Pack,on_delete=models.SET_NULL, null=True,
+                                #help_text="this indicate that asset relate to particular product")
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                help_text="this for creator of product")
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, help_text="for category of product")
+    created_at = models.DateField(auto_now_add=True)
+    updated_at = models.DateField(auto_now=True)
+    is_free=models.BooleanField(default=False,help_text="Asset is free or not")
+    credits=models.IntegerField(default=0,help_text="this for credits")
+    is_active=models.BooleanField(default=True)
+    #tag=models.ManyToManyField(AssetTag, help_text="for tag name of asset")
+    asset_file= models.ManyToManyField(AssetFile,help_text="for asset files storage")
+    image= models.ManyToManyField(Image,help_text="for thumbnail images")
+
 
 
 class Pack(models.Model):
     title = models.CharField(max_length=255, help_text="this will store product title")
-    credits = models.IntegerField(default=0,help_text="this for credits")
+    #credits = models.IntegerField(default=0,help_text="this for credits")
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
     category = models.ForeignKey(Category, on_delete=models.CASCADE, help_text="for category of product")
-    product_type = models.ForeignKey(ProductType, on_delete=models.CASCADE,
-                                     help_text="for type of product i.e single ,pack")
+   # product_type = models.ForeignKey(ProductType, on_delete=models.CASCADE,
+                                   #  help_text="for type of product i.e single ,pack")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    tag = models.ManyToManyField(Tag, help_text="for tag name of product")
-    no_of_items = models.IntegerField(default=0,help_text="number of items in product")
+    tags = models.ManyToManyField(Tag, help_text="for tag name of product")
+    total_assets = models.IntegerField(default=0,help_text="number of items in product")
     is_free = models.BooleanField(default=False,help_text="if product free or paid")
     is_active=models.BooleanField(default=True)
     is_approved=models.BooleanField(default=False)
     base_price=models.IntegerField(default=0,help_text="this for base price")
     discount_price=models.IntegerField(default=0,help_text="this for discount price")
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
+    assets=models.ManyToManyField(Asset,help_text="for all assets file that related to product")
 
 
     # def save(self, *args, **kwargs):
@@ -95,44 +123,18 @@ class Pack(models.Model):
     def __str__(self):
         return self.title
     
-class AssetTag(models.Model):
-    name = models.CharField(max_length=255, help_text="this for tag name")
-    updated_at = models.DateField(auto_now=True)
-    created_at = models.DateField(auto_now_add=True)
+# class AssetTag(models.Model):
+#     name = models.CharField(max_length=255, help_text="this for tag name")
+#     updated_at = models.DateField(auto_now=True)
+#     created_at = models.DateField(auto_now_add=True)
 
-    def __str__(self):
-        return self.name
+#     def __str__(self):
+#         return self.name
     
 
-class AssetFile(models.Model):
-    url=models.URLField(help_text="for product asset URLs")
-    asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
-                                   help_text='This will store file like - jpg, mp4')
-    updated_at = models.DateField(auto_now=True)
-    created_at = models.DateField(auto_now_add=True)
-    
-
-    
-
-class Asset(models.Model):
-    name = models.CharField(max_length=255, help_text="this for Asset name")
-    pack= models.ForeignKey(Pack,on_delete=models.SET_NULL, null=True,
-                                help_text="this indicate that asset relate to particular product")
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                                help_text="this for creator of product")
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, help_text="for category of product")
-    created_at = models.DateField(auto_now_add=True)
-    updated_at = models.DateField(auto_now=True)
-    is_free=models.BooleanField(default=False)
-    credits=models.IntegerField(default=0,help_text="this for credits")
-    is_active=models.BooleanField(default=True)
-    tag=models.ManyToManyField(AssetTag, help_text="for tag name of asset")
-    asset_file= models.ManyToManyField(AssetFile)
-    image= models.ManyToManyField(Image,help_text="for thumbnail images")
-   
    
 
-class SavedProduct(models.Model):
+class SavedPack(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              help_text="this refer particular user that saved items")
     pack = models.ForeignKey(Pack, on_delete=models.CASCADE,
@@ -141,7 +143,7 @@ class SavedProduct(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
-class SavedSingleAsset(models.Model):
+class SavedAsset(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              help_text="this refer particular user that saved items")
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE,
@@ -204,7 +206,7 @@ class PaymentMethod(models.Model):
 
 
 class Country(models.Model):
-    name = models.CharField(max_length=20)
+    name = models.CharField(max_length=20,help_text="this for country name")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -213,8 +215,8 @@ class Country(models.Model):
 
 
 class State(models.Model):
-    name = models.CharField(max_length=56)
-    country = models.ForeignKey(Country, on_delete=models.CASCADE)
+    name = models.CharField(max_length=56,help_text="This for sate name")
+    country = models.ForeignKey(Country, on_delete=models.CASCADE,help_text="This refers country")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -223,7 +225,7 @@ class State(models.Model):
 
 
 class City(models.Model):
-    name = models.CharField(max_length=256)
+    name = models.CharField(max_length=256,help_text="This for city name")
     state = models.ForeignKey(State, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

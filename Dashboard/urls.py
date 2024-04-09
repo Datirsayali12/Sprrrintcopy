@@ -18,5 +18,6 @@ urlpatterns=[
     path('get-packs-by-title/',views.get_packs_by_title),
     path('get-pack-details/',views.get_pack_data),
     path('update-pack/<int:pack_id>/',views.update_pack),
+    path('get_packs_by_title_and_tag',views.get_packs_by_title_and_tag),
 
 ]

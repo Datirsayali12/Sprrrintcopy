@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'Learn',
     'UIAsset',
     'Dashboard',
+     
 
     'django.contrib.sites',
 
@@ -131,6 +132,13 @@ DATABASES = {
     #     'HOST': 'localhost',
     #     'PORT': '5432',
     # }
+
+
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+   
+]
 
 
 REST_FRAMEWORK = {
