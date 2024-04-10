@@ -84,7 +84,7 @@ class Asset(models.Model):
     is_free=models.BooleanField(default=False,help_text="Asset is free or not")
     credits=models.IntegerField(default=0,help_text="this for credits")
     is_active=models.BooleanField(default=True)
-    #tag=models.ManyToManyField(AssetTag, help_text="for tag name of asset")
+    tags=models.ManyToManyField(Tag, help_text="for tag name of asset")
     asset_file= models.ManyToManyField(AssetFile,help_text="for asset files storage")
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
 

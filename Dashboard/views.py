@@ -17,35 +17,6 @@ from rest_framework import status
 from django.db.models import Q
 
 
-@api_view(['GET'])
-def get_tag_and_category(request):
-    categories=Category.objects.all()
-    category_names=[{"category_id":i.id, "category_name":i.name} for i in categories]
-
-    tags=Tag.objects.all()
-    tag_names=[ {"tag_id":i.id,"tag_name":i.name } for i in tags]
-
-    data={
-        'categories':category_names,
-        'tags':tag_names
-    }
-
-    return JsonResponse({'data':data}, status=200)
-
-
-
-@api_view(['DELETE'])
-#@permission_classes([IsAuthenticated])
-def delete_product(request, product_id):
-    try:
-        product = Pack.objects.get(id=product_id)
-        product.is_active= False
-        product.save()
-        return JsonResponse({"message": "Product soft deleted successfully"})
-    except Pack.DoesNotExist:
-        return JsonResponse({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 @api_view(['POST'])
 def upload_asset(request):
@@ -77,7 +48,7 @@ def upload_asset(request):
                     for chunk in uploaded_image.chunks():
                         destination.write(chunk)
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-                asset_image = Image.objects.create(url=file_url, asset_type_id=1)
+                asset_image = Image.objects.create(url=file_url)
                 asset_hero_images.append(asset_image)
 
             # Handle other file uploads
@@ -96,10 +67,11 @@ def upload_asset(request):
                 elif file_name.endswith(".png") :
                     asset_type,is_created=AssetType.objects.get_or_create(name=".png")
                 else:
-                    return JsonResponse({"msg:Invalid File type"})
+                    return JsonResponse({'message': 'Invalid File type'}, status=400, safe=False)
+
 
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-                asset_file = AssetFile.objects.create(url=file_url, asset_type_id=asset_type)
+                asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
                 file_objects.append(asset_file)
 
        
@@ -113,12 +85,12 @@ def upload_asset(request):
             user = User.objects.first() 
             asset = Asset.objects.create(
                 name=request.POST.get('name'),
-                pack_id=None, 
-                creator_id=user.id,
+                pack=None, 
+                creator=user,
                 credits=int(request.POST.get('credits', 0)),
                 category=category,
-                is_active=(is_active == 'true'),
-                is_free=(request.POST.get('credits', 0) == 0)
+                is_active=request.POST.get('is_active'),
+                is_free=request.POST.get('credits', 0) == 0
             )
 
         
@@ -131,16 +103,16 @@ def upload_asset(request):
             if not tag_names:
                 return JsonResponse({'error': 'At least one tag is required'}, status=400)
             
-            t=tag_names[0]
-            ts=t.strip('[]')
-            tag=ts.split(',')
+           
+            print(tag_names)
+            tags=tag_names.split(',')
             
-            for tag_name in tag:
-                tag, _ = Tag.objects.get_or_create(name=tag_name)
-                asset.tag.add(tag)
+            for tag_name in tags:
+                tags, _ = Tag.objects.get_or_create(name=tag_name)
+                asset.tags.add(tags)
 
            
-            return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id}, status=201)
+            return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=201,safe=False)
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=400)
@@ -154,6 +126,7 @@ def upload_asset(request):
 
 @api_view(['POST'])
 def upload_pack(request):
+    #{'title': ['pack16'], 'base_price': ['100'], 'discount_price': ['10'], 'tags': ['tag1,tag2'], 'asset_ids': ['1,2'], 'category_id': ['1'], 'total_assets': ['10'], 'hero_images': [<InMemoryUploadedFile: file1.txt (text/plain)>]}
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -162,7 +135,7 @@ def upload_pack(request):
         u = User.objects.first()
         print(data)
 
-        required_fields = ['title', 'category_id', 'base_price', 'discount_price', 'hero_images', 'tags', 'total_assets']
+        required_fields = ['title', 'category_id','base_price', 'discount_price', 'hero_images', 'tags', 'total_assets']
         for field in required_fields:
             if field not in data:
                 return JsonResponse({'error': f'{field} is required'}, status=400)
@@ -212,7 +185,6 @@ def upload_pack(request):
             title=data.get('title'),
             creator=u,
             category=category,
-           # product_type=product_type_instance,
             base_price=data.get('base_price'),
             discount_price=data.get('discount_price'),
             total_assets=data.get('total_assets')
@@ -378,33 +350,8 @@ def update_asset(request, asset_id):
     return JsonResponse({'message': 'Asset updated successfully.'}, status=200)
 
 
-
-
 @api_view(['GET'])
-def get_packs_by_title(request):
-    title_query = request.GET.get('title', '')  
-    packs = Pack.objects.filter(title__icontains=title_query,is_active=True)
-
-    pack_data=[]
-    
-    for pack in packs:
-            data={
-                'title': pack.title,
-                'credits': pack.credits,
-                'no_of_items': pack.no_of_items,
-                'is_free': pack.is_free,
-                'is_active': pack.is_active,
-                'base_price': pack.base_price,
-                'discount_price': pack.discount_price,
-                'image_urls': [image.url for image in pack.image.all()],
-                'tags': [tag.name for tag in pack.tag.all()]
-            } 
-            pack_data.append(data)
-    
-    return JsonResponse({'packs':pack_data})
-
-@api_view(['GET'])
-def get_pack_data(request):
+def get_all_packs(request):
  
     packs = Pack.objects.filter(is_active=True)
 
@@ -413,18 +360,92 @@ def get_pack_data(request):
     for pack in packs:
             data={
                 'title': pack.title,
-                'credits': pack.credits,
-                'no_of_items': pack.no_of_items,
+                'no_of_items': pack.total_assets,
                 'is_free': pack.is_free,
                 'is_active': pack.is_active,
                 'base_price': pack.base_price,
                 'discount_price': pack.discount_price,
                 'image_urls': [image.url for image in pack.image.all()],
-                'tags': [tag.name for tag in pack.tag.all()]
+                'tags': [tag.name for tag in pack.tags.all()]
             } 
             pack_data.append(data)
     
     return JsonResponse({'packs':pack_data})
+
+
+@api_view(['GET'])
+def get_packs_by_title_and_tag(request):
+    title_query = request.GET.get('title', '')
+    tag_query = request.GET.get('tag', '')
+
+    packs = Pack.objects.filter(is_active=True)
+
+    if title_query or tag_query:
+        packs = packs.filter(Q(title__icontains=title_query) | Q(tags__name__icontains=tag_query))
+
+    pack_data = []
+
+    for pack in packs:
+        data = {
+            'title': pack.title,
+            'no_of_items': pack.total_assets,
+            'is_free': pack.is_free,
+            'is_active': pack.is_active,
+            'base_price': pack.base_price,
+            'discount_price': pack.discount_price,
+            'image_urls': [image.url for image in pack.image.all()],
+            'tags': [tag.name for tag in pack.tags.all()]
+        }
+        pack_data.append(data)
+
+    return JsonResponse({'packs': pack_data})
+
+
+
+@api_view(['GET'])
+def get_assets_by_title_and_tag(request):
+    title_query = request.GET.get('title', '')
+    tag_query = request.GET.get('tag', '')
+
+    asset = Asset.objects.all()
+
+    if title_query or tag_query:
+        assets = asset.filter(Q(name__icontains=title_query) | Q(tags__name__icontains=tag_query))
+
+    pack_data = []
+
+    for asset in assets:
+        data = {
+            "id":asset.id,
+            "name":asset.name,
+            "category":asset.category.name,
+            "creator":u.id,
+            "credits":asset.credits,
+            "hero_images":[image.url for image in asset.image.all()],
+            "asset_files":[file.url  for file in asset.asset_file.all()],
+            "tags":[ tag.name for tag in asset.tags.all()]
+        }
+        pack_data.append(data)
+
+    return JsonResponse({'packs': pack_data})
+
+
+
+@api_view(['DELETE'])
+#@permission_classes([IsAuthenticated])
+def delete_product(request, product_id):
+    try:
+        product = Pack.objects.get(id=product_id)
+        product.is_active= False
+        product.save()
+        return JsonResponse({"message": "Product soft deleted successfully"})
+    except Pack.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
 
 
 @api_view(['DELETE'])
@@ -527,62 +548,57 @@ def update_pack(request, pack_id):
     pack.save()
 
     return JsonResponse({'message': 'Pack updated successfully'})
-#---------------------------------------------------------------------------------------------
-@api_view(['POST'])
-def creating_new_asset_from_existing(request):
-    asset_ids1 = request.POST.getlist('asset_ids') 
-    t=asset_ids1[0]
-    ts=t.strip('[]')
-    asset_ids=ts.split(',')
-
-    getassetobj=Asset.objects.filter(id__in=asset_ids)
-    not_have_pack_ids=[  i.id for i in getassetobj if i.pack==None]
 
 
-    if not not_have_pack_ids:
-        return JsonResponse({'error': 'asset_ids required'}, status=400)
 
+@api_view(['GET'])
+def get_tag_and_category(request):
+    categories=Category.objects.all()
+    category_names=[{"category_id":i.id, "category_name":i.name} for i in categories]
 
-    if not_have_pack_ids: 
-        for asset_id in not_have_pack_ids:
-            try:
-                asset = Asset.objects.get(id=asset_id)
-                asset.pack = pack
-                asset.save()
-            except Asset.DoesNotExist:
-                pass
+    tags=Tag.objects.all()
+    tag_names=[{"tag_id":i.id, "tag_names":i.name} for i in tags]
 
+    
+
+    data={
+        'categories':category_names,
+        'tags':tag_names
+    }
+
+    return JsonResponse({'data':data}, status=200)
 
 
 
 
 @api_view(['GET'])
-def get_packs_by_title_and_tag(request):
-    title_query = request.GET.get('title', '')
-    tag_query = request.GET.get('tag', '')
+def get_all_assets(request):
+    if request.method == 'GET':
+        assets=Asset.objects.all()
+        u=User.objects.first()
+        all_assets=[]
+        for asset in assets:
+            data={
+                "id":asset.id,
+                "name":asset.name,
+                "category":asset.category.name,
+                "creator":u.id,
+                "credits":asset.credits,
+                "hero_images":[image.url for image in asset.image.all()],
+                "asset_files":[file.url  for file in asset.asset_file.all()],
+                "tags":[tag.name for tag in asset.tags.all()]
+                
+            }
+            all_assets.append(data)
+        return JsonResponse({'all_assets':all_assets}, status=200)
 
-    packs = Pack.objects.filter(is_active=True)
 
-    if title_query or tag_query:
-        packs = packs.filter(Q(title__icontains=title_query) | Q(tag__name__icontains=tag_query))
 
-    pack_data = []
 
-    for pack in packs:
-        data = {
-            'title': pack.title,
-            'credits': pack.credits,
-            'no_of_items': pack.no_of_items,
-            'is_free': pack.is_free,
-            'is_active': pack.is_active,
-            'base_price': pack.base_price,
-            'discount_price': pack.discount_price,
-            'image_urls': [image.url for image in pack.image.all()],
-            'tags': [tag.name for tag in pack.tag.all()]
-        }
-        pack_data.append(data)
 
-    return JsonResponse({'packs': pack_data})
+
+
+
 
 
 
