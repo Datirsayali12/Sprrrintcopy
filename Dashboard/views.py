@@ -474,12 +474,12 @@ def update_pack(request, pack_id):
 
     data = request.data
 
-    required_fields = ['title', 'category_id', 'product_type', 'base_price', 'discount_price', 'hero_images', 'tags', 'no_of_items']
+    required_fields = ['title', 'category_id', 'base_price', 'discount_price', 'hero_images', 'tags']
     for field in required_fields:
         if field not in request.data:
             return JsonResponse({'error': f'{field} is required'}, status=400)
 
-    numeric_fields = ['category_id', 'base_price', 'discount_price', 'no_of_items']
+    numeric_fields = ['category_id', 'base_price', 'discount_price']
     for field in numeric_fields:
         if not str(request.data.get(field)).isdigit():
             return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
@@ -495,11 +495,6 @@ def update_pack(request, pack_id):
     except ObjectDoesNotExist:
         return JsonResponse({'error': 'Category not found'}, status=404)
 
-    product_type = request.data.get('product_type')
-    try:
-        product_type_instance = ProductType.objects.get(type=product_type)
-    except ObjectDoesNotExist:
-        return JsonResponse({'error': 'Product type not found'}, status=404)
 
     
     uploaded_images = request.FILES.getlist('hero_images')
@@ -513,38 +508,24 @@ def update_pack(request, pack_id):
                 for chunk in uploaded_image.chunks():
                     destination.write(chunk)
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file, created = Image.objects.get_or_create(url=file_url, asset_type_id=1)
+            asset_file, created = Image.objects.get_or_create(url=file_url)
             new_images.append(asset_file)
 
-    
-        images_to_remove = set(existing_images) - set(new_images)
-        for image_to_remove in images_to_remove:
-            pack.image.remove(image_to_remove)
-
-       
-        images_to_add = set(new_images) - set(existing_images)
-        for image_to_add in images_to_add:
-            pack.image.add(image_to_add)
 
   
-    tag_names =request.data.getlist('tags', [])
-    t=tag_names[0]
-    ts=t.strip('[]')
-    tags=ts.split(',')
-    pack.tag.clear()
+    tag_names = data.get('tags', [])
+    print(tag_names)
+    tags=tag_names.split(',')
+    pack.tags.clear()
     print(tags)
     for tag_name in tags:
         tag, _ = Tag.objects.get_or_create(name=tag_name)
-        pack.tag.add(tag)
-    
-
- 
+        pack.tags.add(tag)
     pack.title = data.get('title')
     pack.category = category
-    pack.product_type = product_type_instance
     pack.base_price = int(request.data.get('base_price'))
     pack.discount_price = int(request.data.get('discount_price'))
-    pack.no_of_items = int(request.data.get('no_of_items'))
+    pack.total_assets = int(request.data.get('total_assets'))
     pack.save()
 
     return JsonResponse({'message': 'Pack updated successfully'})
