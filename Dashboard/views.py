@@ -15,33 +15,40 @@ from django.views.decorators.csrf import csrf_exempt
 import os
 from rest_framework import status
 from django.db.models import Q
-
+import json
+from django.core.exceptions import ValidationError
 
         
 @api_view(['POST'])
 def upload_asset(request):
     if request.method == 'POST':
+        data=request.data.getlist('data')
+        print(data)
+        
         try:
-            required_fields = ['name', 'category_id', 'credits']
+            json_data = data[0]
+            data_dict = json.loads(json_data)
+
+            asset_name = data_dict.get('name')
+            print(asset_name)
+            files = request.FILES.getlist('files') 
+            images = request.FILES.getlist('image')  # Get the list of uploaded files
+
+            
+
+            required_fields = ['name', 'category_id', 'base_price', 'discount_price']
             for field in required_fields:
-                if field not in request.POST or not request.POST[field]:
+                if field not in data_dict or not data_dict[field]:
                     return JsonResponse({'error': f'{field} is required'}, status=400)
             
-            if not request.FILES.getlist('image'):
-                return JsonResponse({'error': 'Thumbnail image is required'}, status=400)
-          
-            credits = request.POST.get('credits', 0)
-            if not credits.isdigit() or int(credits) < 0:
-                return JsonResponse({'error': 'Credits must be a non-negative integer'}, status=400)
-
-            is_active = request.POST.get('is_active', '').lower()
-            if is_active not in ['true', 'false']:
-                return JsonResponse({'error': 'is_active must be either true or false'})
+            if not files:
+                return JsonResponse({'error': 'At least one file is required'}, status=400)
+            
             
             
             # Handle thumbnail image uploads
             asset_hero_images = []
-            for uploaded_image in request.FILES.getlist('image'):
+            for uploaded_image in images:
                 file_name = generate_unique_filename(uploaded_image.name)
                 file_path = os.path.join(settings.MEDIA_ROOT, file_name)
                 with open(file_path, 'wb+') as destination:
@@ -53,7 +60,7 @@ def upload_asset(request):
 
             # Handle other file uploads
             file_objects = []
-            for uploaded_file in request.FILES.getlist('files'):
+            for uploaded_file in files:
                 file_name = generate_unique_filename(uploaded_file.name)
                 file_path = os.path.join(settings.MEDIA_ROOT, file_name)
                 with open(file_path, 'wb+') as destination:
@@ -76,40 +83,55 @@ def upload_asset(request):
 
        
             try:
-                category_id = int(request.POST.get('category_id'))
+                category_id = data_dict.get('category_id')
                 category = Category.objects.get(pk=category_id)
             except (ValueError, Category.DoesNotExist):
                 return JsonResponse({'error': 'Invalid category ID'}, status=400)
 
-         
+
+          
+            is_active_str = data_dict.get('is_active', '').lower()
+            is_free_str = data_dict.get('is_free', '').lower()
+
+            # Convert string values to boolean
+            is_active = is_active_str == 'true'
+            is_free = is_free_str == 'true'
+
+            # Validate boolean values
+            if is_active_str not in ['true', 'false']:
+                return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
+
+            if is_free_str not in ['true', 'false']:
+                return JsonResponse({'error': 'is_free must be either true or false'}, status=400)
+
+
+                    
             user = User.objects.first() 
             asset = Asset.objects.create(
-                name=request.POST.get('name'),
-                pack=None, 
+                name=data_dict.get('name'),
                 creator=user,
-                credits=int(request.POST.get('credits', 0)),
+                base_price=data_dict.get('base_price'),
+                discount_price=data_dict.get('discount_price'),
                 category=category,
-                is_active=request.POST.get('is_active'),
-                is_free=request.POST.get('credits', 0) == 0
+                is_active=is_active,
+                is_free=is_free
             )
-
+            asset.save()
         
             asset.image.add(*asset_hero_images)
+            asset.save()
             asset.asset_file.add(*file_objects)
             asset.save()
 
     
-            tag_names = request.POST.get('tags', [])
+            tag_names = data_dict.get('tags', [])
             if not tag_names:
                 return JsonResponse({'error': 'At least one tag is required'}, status=400)
             
-           
-            print(tag_names)
-            tags=tag_names.split(',')
             
-            for tag_name in tags:
-                tags, _ = Tag.objects.get_or_create(name=tag_name)
-                asset.tags.add(tags)
+            for tag_name in tag_names:
+                tag, _ = Tag.objects.get_or_create(name=tag_name)
+                asset.tags.add(tag)
 
            
             return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=201,safe=False)
@@ -124,6 +146,77 @@ def upload_asset(request):
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
+    
+@api_view(['POST'])
+def create_from_existing(request):
+    if request.method == 'POST':
+        data = request.data
+        print(data)
+        required_fields = ['name', 'asset_id', 'base_price', 'discount_price', 'is_free', 'is_active']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return JsonResponse({'error': f'{field} is required'}, status=400)
+
+        asset_id = data['asset_id']
+
+        try:
+            existing_asset = Asset.objects.get(id=asset_id)
+        except Asset.DoesNotExist:
+            return JsonResponse({'error': 'Asset does not exist'}, status=404)
+        
+        # Convert string values to boolean
+        is_active = data['is_active'].lower() == 'true'
+        is_free = data['is_free'].lower() == 'true'
+
+        # Validate boolean values
+        if is_active not in [True, False]:
+            return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
+
+        if is_free not in [True, False]:
+            return JsonResponse({'error': 'is_free must be either true or false'}, status=400)
+
+        if (existing_asset.name == data['name'] and
+            existing_asset.base_price == data['base_price'] and
+            existing_asset.discount_price == data['discount_price'] and
+            existing_asset.is_free == is_free and
+            existing_asset.is_active == is_active):
+
+            return JsonResponse({'existing_asset_id': existing_asset.id}, status=200)
+        else:
+    
+            creator = User.objects.first()
+
+            new_asset = Asset.objects.create(
+                name=data['name'],
+                creator=creator,
+                base_price=data['base_price'],
+                discount_price=data['discount_price'],
+                category=existing_asset.category,
+                is_free=is_free,
+                is_active=is_active
+            )
+
+            for image in existing_asset.image.all():
+                new_asset.image.add(image)
+
+            for asset_file in existing_asset.asset_file.all():
+                new_asset.asset_file.add(asset_file)
+
+            return JsonResponse({'created_asset_id': new_asset.id}, status=201)
+    else:
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+    #name,credits,asset_id,is_free=False
+    #get asset instance from asset_id
+    #get_all required fields from instance
+    #create new asset
+    #add all fields from payload and asset instance
+    #save()
+
+
+
+
+ 
 @api_view(['POST'])
 def upload_pack(request):
     #{'title': ['pack16'], 'base_price': ['100'], 'discount_price': ['10'], 'tags': ['tag1,tag2'], 'asset_ids': ['1,2'], 'category_id': ['1'], 'total_assets': ['10'], 'hero_images': [<InMemoryUploadedFile: file1.txt (text/plain)>]}
@@ -131,30 +224,34 @@ def upload_pack(request):
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     try:
-        data = request.data
-        u = User.objects.first()
+        data=request.data.getlist('data')
         print(data)
+        json_data = data[0]
+        data_dict = json.loads(json_data)
+        u = User.objects.first()
+        print(data_dict)
 
-        required_fields = ['title', 'category_id','base_price', 'discount_price', 'hero_images', 'tags', 'total_assets']
+        required_fields = ['title', 'category_id','base_price', 'discount_price','tags']
         for field in required_fields:
-            if field not in data:
+            if field not in data_dict:
                 return JsonResponse({'error': f'{field} is required'}, status=400)
 
-        numeric_fields = ['category_id', 'base_price', 'discount_price', 'total_assets']
+        numeric_fields = ['category_id', 'base_price', 'discount_price']
         for field in numeric_fields:
-            if not str(data.get(field)).isdigit():
+            if not str(data_dict[field]).isdigit():
                 return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
 
         if 'hero_images' not in request.FILES or not request.FILES.getlist('hero_images'):
             return JsonResponse({'error': 'At least one hero image is required'}, status=400)
 
-        category_id = data.get('category_id')
+        category_id = data_dict['category_id']
         category = Category.objects.get(pk=category_id)
 
         
 
         pack_image_objects = []
         uploaded_files = request.FILES.getlist('hero_images')
+        print(uploaded_files)
 
         for uploaded_file in uploaded_files:
             file_name = generate_unique_filename(uploaded_file.name)
@@ -163,45 +260,28 @@ def upload_pack(request):
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
 
-            
-            # if file_name.endswith(".jpg") :
-            #     asset_type,is_created=AssetType.objects.get_or_create(name=".jpg")
-            # elif file_name.endswith(".jpeg") :
-            #     asset_type,is_created=AssetType.objects.get_or_create(name=".jpeg")
-            # elif file_name.endswith(".png") :
-            #     asset_type,is_created=AssetType.objects.get_or_create(name=".png")
-            # else:
-            #     return JsonResponse({"msg:Invalid File type"})
+    
 
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file = Image.objects.create(url=file_url)
+            asset_file,_ = Image.objects.get_or_create(url=file_url)
             pack_image_objects.append(asset_file)
 
-        title = data.get('title')
+        title = data_dict.get('title')
         if Pack.objects.filter(title=title).exists():
             return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
 
         pack = Pack(
-            title=data.get('title'),
+            title=data_dict.get('title'),
             creator=u,
             category=category,
-            base_price=data.get('base_price'),
-            discount_price=data.get('discount_price'),
-            total_assets=data.get('total_assets')
+            base_price=data_dict.get('base_price'),
+            discount_price=data_dict.get('discount_price'),
         )
         pack.save()
-
-        # asset_ids = data.get('asset_ids')
-        # if .objects.filter(title=title).exists():
-        #     return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
-
-        # title or credits from where to get to create new asset if chnage made in existing 
        
-        asset_ids = data.get('asset_ids') 
-        print(type(asset_ids))
-        asset_ids1=asset_ids.split(',')
-        if asset_ids1: 
-            for asset_id in asset_ids1:
+        asset_ids = data_dict.get('asset_ids') 
+        if asset_ids: 
+            for asset_id in asset_ids:
                 try:
                     asset = Asset.objects.get(id=int(asset_id))
                     pack.assets.add(asset)
@@ -210,13 +290,10 @@ def upload_pack(request):
                     pass
             pack.save()
 
-        tag_names = data.get('tags', [])
+        tag_names = data_dict.get('tags', [])
         print(tag_names)
-        tags=tag_names.split(',')
-
-        print(tags)
        
-        for tag_name in tags:
+        for tag_name in tag_names:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
             pack.tags.add(tag)
 
@@ -225,7 +302,13 @@ def upload_pack(request):
         pack.image.add(*pack_image_objects)
         pack.save()
 
-        return JsonResponse({'message': 'Pack created successfully'})
+        total_assets =pack.assets.count()
+        pack.total_assets=total_assets
+        pack.save()
+
+
+
+        return JsonResponse({'message': 'Pack created successfully',"pack_id":pack.id})
     
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -235,9 +318,6 @@ def generate_unique_filename(filename):
     import uuid
     _, ext = os.path.splitext(filename)
     return f"{uuid.uuid4()}{ext}"
-
-
-
 
 
 
@@ -271,84 +351,91 @@ def get_selected_existing(request):
 
 
 
-@api_view(['PUT'])
-def update_asset(request, asset_id):
-    try:
-        asset = Asset.objects.get(pk=asset_id)
-    except Asset.DoesNotExist:
-        return JsonResponse({'error': 'Asset not found'}, status=404)
-    
-    if request.method != 'PUT':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+@api_view(['POST'])
+def update_asset(request):
+    if request.method == 'POST':
+        data = request.data.getlist('data')
+        files = request.FILES.getlist('files') 
+        images = request.FILES.getlist('image') 
 
-    required_fields = ['name', 'credits', 'is_active', 'tags', 'category_id']
-    
-    for field in required_fields:
-        if field not in request.data or not request.data[field]:
-            return JsonResponse({'error': f'{field} is required'}, status=400)
+        try:
+            json_data = data[0]
+            data_dict = json.loads(json_data)
+
+            asset_id = data_dict.get('id')  # Get asset ID if provided
+
+            if asset_id:  
+                try:
+                    asset = Asset.objects.get(pk=asset_id)
+                except Asset.DoesNotExist:
+                    return JsonResponse({'error': 'Asset not found'}, status=404)
+
+                # Update asset fields
+                asset.name = data_dict.get('name', asset.name)
+                asset.base_price = data_dict.get('base_price', asset.base_price)
+                asset.discount_price = data_dict.get('discount_price', asset.discount_price)
+
+                category_id = data_dict.get('category_id', asset.category.id)
+                try:
+                    category = Category.objects.get(pk=category_id)
+                    asset.category = category
+                except (ValueError, Category.DoesNotExist):
+                    return JsonResponse({'error': 'Invalid category ID'}, status=400)
+
+                is_active_str = data_dict.get('is_active', '').lower()
+                is_free_str = data_dict.get('is_free', '').lower()
+
+                # Convert string values to boolean
+                asset.is_active = is_active_str == 'true'
+                asset.is_free = is_free_str == 'true'
+
+                if is_active_str not in ['true', 'false']:
+                    return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
+
+                if is_free_str not in ['true', 'false']:
+                    return JsonResponse({'error': 'is_free must be either true or false'}, status=400)
+
+                asset.save()
+
+                # Clear existing files
+                asset.asset_file.clear()
+              
+                for uploaded_file in files:
+                    file_name = generate_unique_filename(uploaded_file.name)
+                    file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in uploaded_file.chunks():
+                            destination.write(chunk)
+                    # Assuming you have AssetType model with a ForeignKey to AssetFile
+                    asset_type, _ = AssetType.objects.get_or_create(name=os.path.splitext(file_name)[1].lower())
+                    file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                    asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
+                    asset.asset_file.add(asset_file)
+
+                # Clear existing images
+                asset.image.clear()
+                # Handle image uploads
+                for uploaded_image in images:
+                    file_name = generate_unique_filename(uploaded_image.name)
+                    file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in uploaded_image.chunks():
+                            destination.write(chunk)
+                    file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                    asset_image = Image.objects.create(url=file_url)
+                    asset.image.add(asset_image)
+
+                return JsonResponse({'message': 'Asset updated successfully.', 'asset_id': asset.id}, status=200)
+
+
+        except ValidationError as e:
+            return JsonResponse({'error': str(e)}, status=400)
         
-    credits = request.data.get('credits', '0')
-    if not credits.isdigit() or int(credits) < 0:
-        return JsonResponse({'error': 'Credits must be a non-negative integer'}, status=400)
-
-    is_active = request.data.get('is_active', '').lower()
-    if is_active not in ['true', 'false']:
-        return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
-
-    asset.name = request.data.get('name')
-    asset.credits = credits
-    asset.is_active = is_active == 'true'
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
     
-    category_id = request.data.get('category_id')
-    category = Category.objects.get(pk=category_id)
-    asset.category = category
-    
-   
-    uploaded_images = request.FILES.getlist('image')
-    if uploaded_images:
-        asset.image.clear()
-        for uploaded_image in uploaded_images:
-            file_name = generate_unique_filename(uploaded_image.name)
-            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in uploaded_image.chunks():
-                    destination.write(chunk)
-
-            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_image = Image.objects.create(url=file_url, asset_type_id=1)
-            asset.image.add(asset_image)
-
-
-    uploaded_files = request.FILES.getlist('files')
-    if uploaded_files:
-        asset.asset_file.clear()
-        for uploaded_file in uploaded_files:
-            file_name = generate_unique_filename(uploaded_file.name)
-            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in uploaded_file.chunks():
-                    destination.write(chunk)
-
-            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file = AssetFile.objects.create(url=file_url, asset_type_id=1)
-            asset.asset_file.add(asset_file)
-
-    asset.save()
-    
-    asset.tag.clear()
-    tag_names =request.data.getlist('tags', [])
-    t=tag_names[0]
-    ts=t.strip('[]')
-    tags=ts.split(',')
-
-    for tag_name in tags:
-        tag_name = tag_name.strip()
-        tag, _ = AssetTag.objects.get_or_create(name=tag_name)
-        asset.tag.add(tag)
-    asset.save()
-    
-    return JsonResponse({'message': 'Asset updated successfully.'}, status=200)
-
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 @api_view(['GET'])
 def get_all_packs(request):
@@ -374,14 +461,13 @@ def get_all_packs(request):
 
 
 @api_view(['GET'])
-def get_packs_by_title_and_tag(request):
-    title_query = request.GET.get('title', '')
-    tag_query = request.GET.get('tag', '')
+def get_packs_by_title_or_tag(request):
+    query = request.GET.get('query', '')
 
     packs = Pack.objects.filter(is_active=True)
 
-    if title_query or tag_query:
-        packs = packs.filter(Q(title__icontains=title_query) | Q(tags__name__icontains=tag_query))
+    if query:
+        packs = packs.filter(Q(title__icontains=query) | Q(tags__name__icontains=query))
 
     pack_data = []
 
@@ -404,30 +490,28 @@ def get_packs_by_title_and_tag(request):
 
 @api_view(['GET'])
 def get_assets_by_title_and_tag(request):
-    title_query = request.GET.get('title', '')
-    tag_query = request.GET.get('tag', '')
+    query = request.GET.get('query', '')
 
-    asset = Asset.objects.all()
+  
+    assets = Asset.objects.filter(
+        Q(name__icontains=query) | Q(tags__name__icontains=query)
+    ).distinct()
+    u=User.objects.first()
 
-    if title_query or tag_query:
-        assets = asset.filter(Q(name__icontains=title_query) | Q(tags__name__icontains=tag_query))
-
-    pack_data = []
-
+   
+    assets_data = []
     for asset in assets:
-        data = {
-            "id":asset.id,
-            "name":asset.name,
-            "category":asset.category.name,
-            "creator":u.id,
-            "credits":asset.credits,
-            "hero_images":[image.url for image in asset.image.all()],
-            "asset_files":[file.url  for file in asset.asset_file.all()],
-            "tags":[ tag.name for tag in asset.tags.all()]
+        asset_data = {
+            'id': asset.id,
+            'name': asset.name,
+            'creator': u.id,
+            'category': asset.category.name,
+            'is_free': asset.is_free,
+            'is_active': asset.is_active,
         }
-        pack_data.append(data)
+        assets_data.append(asset_data)
 
-    return JsonResponse({'packs': pack_data})
+    return JsonResponse({'assets': assets_data})
 
 
 
@@ -564,7 +648,8 @@ def get_all_assets(request):
                 "name":asset.name,
                 "category":asset.category.name,
                 "creator":u.id,
-                "credits":asset.credits,
+                "base_price":asset.base_price,
+                "discount_price":asset.discount_price,
                 "hero_images":[image.url for image in asset.image.all()],
                 "asset_files":[file.url  for file in asset.asset_file.all()],
                 "tags":[tag.name for tag in asset.tags.all()]

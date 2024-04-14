@@ -65,7 +65,7 @@ class Image(models.Model):
     
 
 class AssetFile(models.Model):
-    url=models.URLField(help_text="for product asset URLs")
+    url=models.URLField(unique=True,help_text="for product asset URLs")
     asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
                                    help_text='This will store file like - jpg, mp4')
     updated_at = models.DateField(auto_now=True)
@@ -82,11 +82,12 @@ class Asset(models.Model):
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
     is_free=models.BooleanField(default=False,help_text="Asset is free or not")
-    credits=models.IntegerField(default=0,help_text="this for credits")
     is_active=models.BooleanField(default=True)
     tags=models.ManyToManyField(Tag, help_text="for tag name of asset")
     asset_file= models.ManyToManyField(AssetFile,help_text="for asset files storage")
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
+    base_price=models.IntegerField(default=0,help_text="this for base price")
+    discount_price=models.IntegerField(default=0,help_text="this for discount price")
 
 
 
