@@ -24,11 +24,11 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(AssetFile)
 class AssetFileAdmin(admin.ModelAdmin):
-    list_display = ('url', 'asset_type')
+    list_display = ('id','url', 'asset_type')
 
 @admin.register(Image)
 class ImageAdmin(admin.ModelAdmin):
-    list_display = ('url', 'is_hero_img')
+    list_display = ('id','url', 'is_hero_img')
 
 
 # @admin.register(ProductType)
@@ -38,17 +38,17 @@ class ImageAdmin(admin.ModelAdmin):
 
 @admin.register(AssetType)
 class AssetTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
+    list_display = ('id','name', 'created_at', 'updated_at')
 
 
 @admin.register(Pack)
 class PackAdmin(admin.ModelAdmin):
-    list_display = ('title', 'base_price','discount_price', 'creator', 'category', 'created_at', 'updated_at')
+    list_display = ('id','title', 'base_price','discount_price', 'creator', 'category', 'created_at', 'updated_at')
 
 
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
-    list_display = ('creator', 'created_at', 'updated_at')
+    list_display = ('id','name','creator', 'base_price','discount_price','category','created_at', 'updated_at')
 
 
 @admin.register(SavedPack)
