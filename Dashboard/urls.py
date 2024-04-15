@@ -15,7 +15,6 @@ urlpatterns=[
     path('upload-pack/',views.upload_pack),
     path('get-existing/',views.get_selected_existing),
     path('update-asset/<int:asset_id>/',views.update_asset),
-   # path('get-packs-by-title/',views.get_packs_by_title),
     path('get-all-packs/',views.get_all_packs),
     path('update-pack/<int:pack_id>/',views.update_pack),
     path('get-packs-by-title-and-tag/',views.get_packs_by_title_or_tag),

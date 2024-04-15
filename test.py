@@ -1,5 +1,24 @@
 import requests
 
+
+def get_existing():
+    
+        url = 'http://your-api-url/create_from_existing/'
+
+        data = {
+            'name': 'New Asset Name',
+            'asset_id': 1,  
+            'credits': 100,  
+            'is_free': False  
+           
+        }
+
+    
+        response = requests.post(url, data=data)
+
+        print(response.json())
+
+
 def get_tags():
     url = 'http://127.0.0.1:8000/Dashboard/get-tags/'  # Update with your actual URL
     try:
@@ -124,7 +143,7 @@ def upload_asset():
         'name': 'Example Asset',
         'category_id': 1,  
         'credits': 10,
-        'is_active': 'true',
+        'is_active': True,
         'tags': ['tag1', 'tag2']  
     }
 
@@ -180,7 +199,8 @@ def update_asset():
         'category_id': 1,  
         'credits': 10,
         'is_active': 'true',
-        'tags': ['tag1', 'tag2','tag3']  
+        'tags': ['tag1', 'tag2','tag3'] 
+ 
     }
 
    
