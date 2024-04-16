@@ -31,8 +31,8 @@ def upload_asset(request):
 
             asset_name = data_dict.get('name')
             print(asset_name)
-            files = request.FILES.getlist('files') 
-            images = request.FILES.getlist('image')  # Get the list of uploaded files
+            files = request.FILES.getlist('asset_files')
+            images = request.FILES.getlist('thumbnail_images')  # Get the list of uploaded files
 
             
 
@@ -360,8 +360,8 @@ def update_asset(request, asset_id):
         json_data = data[0]
         data_dict = json.loads(json_data)
         print(data_dict)
-        files = request.FILES.getlist('files') 
-        images = request.FILES.getlist('image') 
+        files = request.FILES.getlist('asset_files')
+        images = request.FILES.getlist('thumbnail_images')
 
         print(files)
         print(images)
@@ -443,54 +443,107 @@ def update_asset(request, asset_id):
 
 @api_view(['GET'])
 def get_all_packs(request):
- 
-    packs = Pack.objects.filter(is_active=True)
+    u=User.objects.first()
+    try:
+        packs = Pack.objects.all()
+        packs_data = []
 
-    pack_data=[]
-    
-    for pack in packs:
-            data={
+        for pack in packs:
+            assets = pack.assets.all()  # Access assets using the related name
+
+            pack_data = {
+                'id': pack.id,
                 'title': pack.title,
-                'no_of_items': pack.total_assets,
-                'is_free': pack.is_free,
-                'is_active': pack.is_active,
+                #'creator': pack.u.id,
+                'category': pack.category.name,
                 'base_price': pack.base_price,
                 'discount_price': pack.discount_price,
+                'is_free': pack.is_free,
+                'is_active': pack.is_active,
+                'created_at': pack.created_at,
+                'updated_at': pack.updated_at,
+                'tags': [tag.name for tag in pack.tags.all()],
                 'image_urls': [image.url for image in pack.image.all()],
-                'tags': [tag.name for tag in pack.tags.all()]
-            } 
-            pack_data.append(data)
-    
-    return JsonResponse({'packs':pack_data})
+                'assets': []
+            }
 
+            for asset in assets:
+                asset_data = {
+                    'id': asset.id,
+                    'name': asset.name,
+                    'category': asset.category.name,
+                    'base_price': asset.base_price,
+                    'discount_price': asset.discount_price,
+                    'is_free': asset.is_free,
+                    'is_active': asset.is_active,
+                    'created_at': asset.created_at,
+                    'updated_at': asset.updated_at,
+                    'tags': [tag.name for tag in asset.tags.all()],
+                    'images': [img.url for img in asset.image.all()],
+                    'asset_file':[file_url.url  for file_url in asset.asset_file.all()]
+                }
+                pack_data['assets'].append(asset_data)
+
+            packs_data.append(pack_data)
+
+        return JsonResponse({'packs': packs_data}, status=200)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @api_view(['GET'])
 def get_packs_by_title_or_tag(request):
-    query = request.GET.get('query', '')
+    try:
+        query = request.GET.get('query', '')
+        packs = Pack.objects.filter(is_active=True)
 
-    packs = Pack.objects.filter(is_active=True)
+        if query:
+            packs = packs.filter(Q(title__icontains=query) | Q(tags__name__icontains=query))
 
-    if query:
-        packs = packs.filter(Q(title__icontains=query) | Q(tags__name__icontains=query))
+        u = User.objects.first()
+        packs_data = []
 
-    pack_data = []
+        for pack in packs:
+            assets = pack.assets.all()
 
-    for pack in packs:
-        data = {
-            'title': pack.title,
-            'no_of_items': pack.total_assets,
-            'is_free': pack.is_free,
-            'is_active': pack.is_active,
-            'base_price': pack.base_price,
-            'discount_price': pack.discount_price,
-            'image_urls': [image.url for image in pack.image.all()],
-            'tags': [tag.name for tag in pack.tags.all()]
-        }
-        pack_data.append(data)
+            pack_data = {
+                'id': pack.id,
+                'title': pack.title,
+                'category': pack.category.name,
+                'base_price': pack.base_price,
+                'discount_price': pack.discount_price,
+                'is_free': pack.is_free,
+                'is_active': pack.is_active,
+                'created_at': pack.created_at,
+                'updated_at': pack.updated_at,
+                'tags': [tag.name for tag in pack.tags.all()],
+                'image_urls': [image.url for image in pack.image.all()],
+                'assets': []
+            }
 
-    return JsonResponse({'packs': pack_data})
+            for asset in assets:
+                asset_data = {
+                    'id': asset.id,
+                    'name': asset.name,
+                    'category': asset.category.name,
+                    'base_price': asset.base_price,
+                    'discount_price': asset.discount_price,
+                    'is_free': asset.is_free,
+                    'is_active': asset.is_active,
+                    'created_at': asset.created_at,
+                    'updated_at': asset.updated_at,
+                    'tags': [tag.name for tag in asset.tags.all()],
+                    'images': [img.url for img in asset.image.all()],
+                    'asset_file': [file_url.url for file_url in asset.asset_file.all()]
+                }
+                pack_data['assets'].append(asset_data)
 
+            packs_data.append(pack_data)
 
+        return JsonResponse({'packs': packs_data}, status=200)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @api_view(['GET'])
 def get_assets_by_title_and_tag(request):

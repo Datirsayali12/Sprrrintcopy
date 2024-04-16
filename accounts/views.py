@@ -33,12 +33,11 @@ class UserRegistrationView(APIView):
       
             token = default_token_generator.make_token(user)
 
-           
-            # current_site = get_current_site(request)
-            # domain = current_site.domain
+            current_site = get_current_site(request)
+            domain = current_site.domain
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            verification_url = f'http://127.0.0.1:8000{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
-          
+            verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+
             subject = 'Verify Your Email Address'
             message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
             email = EmailMessage(subject, message, to=[user.email])
@@ -55,15 +54,13 @@ class CreatorRegistrationView(APIView):
         if serializer.is_valid():
             user = serializer.save()
 
-      
             token = default_token_generator.make_token(user)
 
-           
             current_site = get_current_site(request)
             domain = current_site.domain
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            verification_url = f'http://127.0.0.1:8000{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
-          
+            verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+
             subject = 'Verify Your Email Address'
             message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
             email = EmailMessage(subject, message, to=[user.email])

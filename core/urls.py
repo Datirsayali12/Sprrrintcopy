@@ -27,7 +27,7 @@ urlpatterns = [
     path('uiasset/', include('UIAsset.urls')),
     path('account/', include('accounts.urls')),
     path('Dashboard/', include('Dashboard.urls')),
-    path('accounts/', include('allauth.urls')),
+
    # path('home/', TemplateView.as_view(template_name='dashboard/home.html'),name='home'),
 
 
