@@ -1,9 +1,10 @@
 from django.db import models
 from django.conf import settings
-
+from autoslug.fields import AutoSlugField
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+
 
 
 # -----------------For product---------------------------------
@@ -12,28 +13,38 @@ class Category(models.Model):
     name = models.CharField(max_length=255, unique=True, help_text="this store category name")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    slug = AutoSlugField(populate_from='name')
+
 
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
 
-class SubCategory(models.Model):
-    name = models.CharField(max_length=255, help_text="this will store sub category name")
-    categories = models.ManyToManyField(Category, help_text="manyTOmany field with subcategory")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return self.name
+# class SubCategory(models.Model):
+#     name = models.CharField(max_length=255, help_text="this will store sub category name")
+#     categories = models.ManyToManyField(Category, help_text="manyTOmany field with subcategory")
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+#
+#     def __str__(self):
+#         return self.name
 
 
 class Tag(models.Model):
-    name = models.CharField(max_length=255, help_text="this for tag name")
+    name = models.CharField(unique=True,max_length=255, help_text="this for tag name")
     updated_at = models.DateField(auto_now=True)
     created_at = models.DateField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
 
 
 # class ProductType(models.Model):
@@ -51,6 +62,10 @@ class AssetType(models.Model):
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
@@ -61,6 +76,8 @@ class Image(models.Model):
                                    #help_text='This will store file like - jpg, mp4')
     updated_at = models.DateField(auto_now=True)
     created_at = models.DateField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
 
     
 
@@ -70,6 +87,8 @@ class AssetFile(models.Model):
                                    help_text='This will store file like - jpg, mp4')
     updated_at = models.DateField(auto_now=True)
     created_at = models.DateField(auto_now_add=True)
+    is_active=models.BooleanField(default=True)
+
     
 
 class Asset(models.Model):
@@ -88,11 +107,14 @@ class Asset(models.Model):
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
     base_price=models.IntegerField(default=0,help_text="this for base price")
     discount_price=models.IntegerField(default=0,help_text="this for discount price")
+    slug = AutoSlugField(populate_from='name')
 
-
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
 
 class Pack(models.Model):
-    title = models.CharField(max_length=255, help_text="this will store product title")
+    name= models.CharField(max_length=255, help_text="this will store product title")
     #credits = models.IntegerField(default=0,help_text="this for credits")
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
@@ -110,6 +132,11 @@ class Pack(models.Model):
     discount_price=models.IntegerField(default=0,help_text="this for discount price")
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
     assets=models.ManyToManyField(Asset,help_text="for all assets file that related to product")
+    slug = AutoSlugField(populate_from='name')
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
 
 
     # def save(self, *args, **kwargs):
@@ -122,7 +149,7 @@ class Pack(models.Model):
 
 
     def __str__(self):
-        return self.title
+        return self.name
     
 # class AssetTag(models.Model):
 #     name = models.CharField(max_length=255, help_text="this for tag name")

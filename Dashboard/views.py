@@ -1,3 +1,6 @@
+import io
+
+from django.core.files.base import ContentFile
 from rest_framework.decorators import api_view,permission_classes
 from UIAsset.models import *
 from django.http import JsonResponse
@@ -8,15 +11,15 @@ from django.db.models.functions import Length
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import ObjectDoesNotExist
 from accounts.models import *
-from django.utils import timezone
-from django.forms.models import model_to_dict
 from django.db.models import Sum
-from django.views.decorators.csrf import csrf_exempt
 import os
 from rest_framework import status
 from django.db.models import Q
 import json
+import hashlib
 from django.core.exceptions import ValidationError
+from zipfile import ZipFile
+import urllib.request
 
         
 @api_view(['POST'])
@@ -28,21 +31,19 @@ def upload_asset(request):
         try:
             json_data = data[0]
             data_dict = json.loads(json_data)
-
             asset_name = data_dict.get('name')
             print(asset_name)
             files = request.FILES.getlist('asset_files')
-            images = request.FILES.getlist('thumbnail_images')  # Get the list of uploaded files
+            images = request.FILES.getlist('thumbnail_images')
+            print(files)
 
-            
-
-            required_fields = ['name', 'category_id', 'base_price', 'discount_price']
+            required_fields = ['name', 'category_id', 'credits']
             for field in required_fields:
                 if field not in data_dict or not data_dict[field]:
                     return JsonResponse({'error': f'{field} is required'}, status=400)
             
-            if not files:
-                return JsonResponse({'error': 'At least one file is required'}, status=400)
+            # if not files:
+            #     return JsonResponse({'error': 'At least one file is required'}, status=400)
             
             
             
@@ -67,21 +68,23 @@ def upload_asset(request):
                     for chunk in uploaded_file.chunks():
                         destination.write(chunk)
 
-                if file_name.endswith(".jpg") :
-                    asset_type,is_created=AssetType.objects.get_or_create(name=".jpg")
-                elif file_name.endswith(".jpeg") :
-                    asset_type,is_created=AssetType.objects.get_or_create(name=".jpeg")
-                elif file_name.endswith(".png") :
-                    asset_type,is_created=AssetType.objects.get_or_create(name=".png")
-                else:
-                    return JsonResponse({'message': 'Invalid File type'}, status=400, safe=False)
+                # Check if the uploaded file is a zip file
+                if not file_name.endswith(".zip"):
+                    # If not a zip file, remove the extension
+                    file_name = os.path.splitext(file_name)[0]
 
+                    # Convert other file types to zip format
+                zip_file_path = os.path.join(settings.MEDIA_ROOT, f"{file_name}.zip")
+                with ZipFile(zip_file_path, 'w') as zipf:
+                    zipf.write(file_path, arcname=os.path.basename(file_name))
+
+                file_name += ".zip"  # Add .zip extension
+                asset_type, _ = AssetType.objects.get_or_create(name=".zip")
 
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
                 asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
                 file_objects.append(asset_file)
 
-       
             try:
                 category_id = data_dict.get('category_id')
                 category = Category.objects.get(pk=category_id)
@@ -90,16 +93,15 @@ def upload_asset(request):
 
 
           
-            is_active_str = data_dict.get('is_active', '').lower()
+
             is_free_str = data_dict.get('is_free', '').lower()
 
             # Convert string values to boolean
-            is_active = is_active_str == 'true'
+
             is_free = is_free_str == 'true'
 
             # Validate boolean values
-            if is_active_str not in ['true', 'false']:
-                return JsonResponse({'error': 'is_active must be either true or false'}, status=400)
+
 
             if is_free_str not in ['true', 'false']:
                 return JsonResponse({'error': 'is_free must be either true or false'}, status=400)
@@ -110,10 +112,8 @@ def upload_asset(request):
             asset = Asset.objects.create(
                 name=data_dict.get('name'),
                 creator=user,
-                base_price=data_dict.get('base_price'),
-                discount_price=data_dict.get('discount_price'),
+                base_price=data_dict.get('credits'),
                 category=category,
-                is_active=is_active,
                 is_free=is_free
             )
             asset.save()
@@ -232,12 +232,12 @@ def upload_pack(request):
         u = User.objects.first()
         print(data_dict)
 
-        required_fields = ['title', 'category_id','base_price', 'discount_price','tags']
+        required_fields = ['name', 'category_id','credits','tags']
         for field in required_fields:
             if field not in data_dict:
                 return JsonResponse({'error': f'{field} is required'}, status=400)
 
-        numeric_fields = ['category_id', 'base_price', 'discount_price']
+        numeric_fields = ['category_id', 'credits']
         for field in numeric_fields:
             if not str(data_dict[field]).isdigit():
                 return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
@@ -267,16 +267,16 @@ def upload_pack(request):
             asset_file,_ = Image.objects.get_or_create(url=file_url)
             pack_image_objects.append(asset_file)
 
-        title = data_dict.get('title')
-        if Pack.objects.filter(title=title).exists():
+        name = data_dict.get('name')
+        if Pack.objects.filter(name=name).exists():
             return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
 
         pack = Pack(
-            title=data_dict.get('title'),
+            name=data_dict.get('name'),
             creator=u,
             category=category,
-            base_price=data_dict.get('base_price'),
-            discount_price=data_dict.get('discount_price'),
+            base_price=data_dict.get('credits'),
+
         )
         pack.save()
        
@@ -355,25 +355,23 @@ def get_selected_existing(request):
 @api_view(['PUT'])
 def update_asset(request, asset_id):
     if request.method == 'PUT':
-        data=request.data.getlist('data')
-        print(data)
-        json_data = data[0]
-        data_dict = json.loads(json_data)
-        print(data_dict)
-        files = request.FILES.getlist('asset_files')
-        images = request.FILES.getlist('thumbnail_images')
-
-        print(files)
-        print(images)
-
         try:
+            data = request.data.getlist('data')
+            print(data)
+            json_data = data[0]
+            data_dict = json.loads(json_data)
+            print(data_dict)
+            files = request.FILES.getlist('asset_files')
+            images = request.FILES.getlist('thumbnail_images')
+
+            print(files)
+            print(images)
+
             asset = Asset.objects.get(pk=asset_id)
 
             # Update asset fields
             asset.name = data_dict.get('name', asset.name)
-            asset.base_price = data_dict.get('base_price', asset.base_price)
-            asset.discount_price = data_dict.get('discount_price', asset.discount_price)
-
+            asset.base_price = data_dict.get('credits', asset.base_price)
             category_id = data_dict.get('category_id', asset.category.id)
             try:
                 category = Category.objects.get(pk=category_id)
@@ -381,48 +379,146 @@ def update_asset(request, asset_id):
             except (ValueError, Category.DoesNotExist):
                 return JsonResponse({'error': 'Invalid category ID'}, status=400)
 
-            is_active_str = data_dict.get('is_active', '')
             is_free_str = data_dict.get('is_free', '')
 
-            is_active = is_active_str == 'true'
             is_free = is_free_str == 'true'
 
-            print(is_active)
             print(is_free)
 
-            asset.is_active=is_active
-            asset.is_free=is_free
+            asset.is_free = is_free
 
             asset.save()
 
-            # Clear existing files
-            asset.asset_file.clear()
-          
-            for uploaded_file in files:
-                file_name = generate_unique_filename(uploaded_file.name)
-                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-                with open(file_path, 'wb+') as destination:
-                    for chunk in uploaded_file.chunks():
-                        destination.write(chunk)
-               
-                asset_type, _ = AssetType.objects.get_or_create(name=os.path.splitext(file_name)[1].lower())
-                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-                asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
-                asset.asset_file.add(asset_file)
+            # Handle tags
+            added_tags = data_dict.get('tags_added', [])
+            deleted_tags = data_dict.get('tags_deleted', [])
+            for tag_name in added_tags:
+                tag, _ = Tag.objects.get_or_create(name=tag_name)
+                asset.tags.add(tag)
+            for tag_name in deleted_tags:
+                asset.tags.filter(name=tag_name).delete()
+            asset.save()
+
+            if 'asset_files' in request.FILES:
+                uploaded_files = request.FILES.getlist('asset_files')
+                print(uploaded_files)
+                new_images = []
+                existing_image_hashes = set()
+
+                for file in asset.asset_file.all():
+                    try:
+                        # Open the URL of the image
+                        with urllib.request.urlopen(file.url) as response:
+                            # Read the content of the image and calculate its hash
+                            image_content = response.read()
+                            image_hash = hashlib.sha256(image_content).hexdigest()
+                            existing_image_hashes.add(image_hash)
+                    except Exception as e:
+                        print(f"Error processing image {file.url}: {e}")
+                print(existing_image_hashes)
+                l=[]
+                file_objects=[]
+                for uploaded_file in uploaded_files:
+                    # Calculate hash of the uploaded file's content
+                    uploaded_file.seek(0)
+                    uploaded_file_hash = hashlib.sha256(uploaded_file.read()).hexdigest()
+                    l.append(uploaded_file_hash)
+
+                    # Check if the hash of the uploaded file matches any existing image hash
+                    if uploaded_file_hash in existing_image_hashes:
+                        continue  # Skip creating a new image if it's a duplicate
+
+                    # Handle new image creation
+                    file_name = generate_unique_filename(uploaded_file.name)
+                    file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in uploaded_file.chunks():
+                            destination.write(chunk)
+
+                    # Check if the uploaded file is a zip file
+                    if not file_name.endswith(".zip"):
+                        # If not a zip file, remove the extension
+                        file_name = os.path.splitext(file_name)[0]
+
+                        # Convert other file types to zip format
+                    zip_file_path = os.path.join(settings.MEDIA_ROOT, f"{file_name}.zip")
+                    with ZipFile(zip_file_path, 'w') as zipf:
+                        zipf.write(file_path, arcname=os.path.basename(file_name))
+
+                    file_name += ".zip"  # Add .zip extension
+                    asset_type, _ = AssetType.objects.get_or_create(name=".zip")
+
+                    file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                    asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
+                    file_objects.append(asset_file)
+                print(l)
+                asset.asset_file.add(*file_objects)
                 asset.save()
 
-            asset.image.clear()
-            # Handle image uploads
-            for uploaded_image in images:
-                file_name = generate_unique_filename(uploaded_image.name)
-                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-                with open(file_path, 'wb+') as destination:
-                    for chunk in uploaded_image.chunks():
-                        destination.write(chunk)
-                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-                asset_image = Image.objects.create(url=file_url)
-                asset.image.add(asset_image)
+            if 'thumbnail_images' in request.FILES:
+                uploaded_files = request.FILES.getlist('thumbnail_images')
+                print(uploaded_files)
+                new_images = []
+                existing_image_hashes = set()
+
+                for image in asset.image.all():
+                    try:
+                        # Open the URL of the image
+                        with urllib.request.urlopen(image.url) as response:
+                            # Read the content of the image and calculate its hash
+                            image_content = response.read()
+                            image_hash = hashlib.sha256(image_content).hexdigest()
+                            existing_image_hashes.add(image_hash)
+                    except Exception as e:
+                        print(f"Error processing image {image.url}: {e}")
+
+
+                for uploaded_file in uploaded_files:
+                    # Calculate hash of the uploaded file's content
+                    uploaded_file.seek(0)
+                    uploaded_file_hash = hashlib.sha256(uploaded_file.read()).hexdigest()
+
+
+                    # Check if the hash of the uploaded file matches any existing image hash
+                    if uploaded_file_hash in existing_image_hashes:
+                        continue  # Skip creating a new image if it's a duplicate
+
+                    # Handle new image creation
+                    file_name = generate_unique_filename(uploaded_file.name)
+                    file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in uploaded_file.chunks():
+                            destination.write(chunk)
+                    file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                    image, _ = Image.objects.get_or_create(url=file_url)
+                    new_images.append(image)
+
+                asset.image.add(*new_images)
                 asset.save()
+
+            # Deactivate and remove images
+            deleted_image_ids = data_dict.get('images_deleted', [])
+            for image_id in deleted_image_ids:
+                try:
+                    image_to_delete = Image.objects.get(pk=image_id)
+                    image_to_delete.is_active = False
+                    image_to_delete.save()
+                    asset.image.remove(image_to_delete)
+                    asset.save()
+                except Image.DoesNotExist:
+                    pass
+
+            # Deactivate and remove asset files
+            deleted_asset_files_ids = data_dict.get('files_deleted', [])
+            for file_id in deleted_asset_files_ids:
+                try:
+                    file_to_delete = AssetFile.objects.get(pk=file_id)
+                    file_to_delete.is_active = False
+                    file_to_delete.save()
+                    asset.asset_file.remove(file_to_delete)
+                    asset.save()
+                except AssetFile.DoesNotExist:
+                    pass
 
             return JsonResponse({'message': 'Asset updated successfully.', 'asset_id': asset.id}, status=200)
 
@@ -431,12 +527,13 @@ def update_asset(request, asset_id):
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=400)
-        
+
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
-    
+
     else:
         return JsonResponse({'error': 'Method not allowed'}, status=405)
+
     
 
 
@@ -605,7 +702,6 @@ def delete_asset(request, asset_id):
 
 
 
-
 @api_view(['PUT'])
 def update_pack(request, pack_id):
     if request.method != 'PUT':
@@ -616,40 +712,65 @@ def update_pack(request, pack_id):
         data = request.data.getlist('data')
         json_data = data[0]
         data_dict = json.loads(json_data)
+        print(data_dict)
 
+        pack.name= data_dict.get('name', pack.name)
+        pack.base_price = data_dict.get('credits', pack.base_price)
 
-        pack.title = data_dict.get('title', pack.title)
-        pack.base_price = data_dict.get('base_price', pack.base_price)
-        pack.discount_price = data_dict.get('discount_price', pack.discount_price)
-
-    
         category_id = data_dict.get('category_id', pack.category.id)
         category = Category.objects.get(pk=category_id)
         pack.category = category
+        is_free_str = data_dict.get('is_free', '')
+        is_free = is_free_str == 'true'
+        pack.is_free=is_free
 
         # Update assets
         asset_ids = data_dict.get('asset_ids', [])
-        pack.assets.clear()  
+        pack.assets.clear()
         for asset_id in asset_ids:
             try:
                 asset = Asset.objects.get(pk=int(asset_id))
                 pack.assets.add(asset)
             except Asset.DoesNotExist:
                 pass
-        pack.save()
-      
-        tag_names = data_dict.get('tags', [])
-        pack.tags.clear() 
-        for tag_name in tag_names:
+
+        # Handle tags
+        added_tags = data_dict.get('tags_added', [])
+        deleted_tags = data_dict.get('tags_deleted', [])
+        for tag_name in added_tags:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
             pack.tags.add(tag)
-        pack.save()
+        for tag_name in deleted_tags:
+            pack.tags.filter(name=tag_name).delete()
 
-        if 'hero_images' in request.FILES and request.FILES.getlist('hero_images'):
-            pack.image.clear()  
+        # Handle images
+        if 'hero_images' in request.FILES:
             uploaded_files = request.FILES.getlist('hero_images')
-            pack_image_objects = []
+            print(uploaded_files)
+            new_images = []
+            existing_image_hashes = set()
+
+            for image in pack.image.all():
+                try:
+                    # Open the URL of the image
+                    with urllib.request.urlopen(image.url) as response:
+                        # Read the content of the image and calculate its hash
+                        image_content = response.read()
+                        image_hash = hashlib.sha256(image_content).hexdigest()
+                        existing_image_hashes.add(image_hash)
+                except Exception as e:
+                    print(f"Error processing image {image.url}: {e}")
+
             for uploaded_file in uploaded_files:
+                # Calculate hash of the uploaded file's content
+                uploaded_file.seek(0)
+                uploaded_file_hash = hashlib.sha256(uploaded_file.read()).hexdigest()
+
+                # Check if the hash of the uploaded file matches any existing image hash
+                if uploaded_file_hash in existing_image_hashes:
+                    continue  # Skip creating a new image if it's a duplicate
+
+                # Handle new image creation
                 file_name = generate_unique_filename(uploaded_file.name)
                 file_path = os.path.join(settings.MEDIA_ROOT, file_name)
                 with open(file_path, 'wb+') as destination:
@@ -657,14 +778,35 @@ def update_pack(request, pack_id):
                         destination.write(chunk)
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
                 image, _ = Image.objects.get_or_create(url=file_url)
-                pack_image_objects.append(image)
-            pack.image.add(*pack_image_objects)
-        pack.save()
+                new_images.append(image)
 
-      
+            pack.image.add(*new_images)
+            pack.save()
+
+            # Deactivate and remove images
+            deleted_image_ids = data_dict.get('images_deleted', [])
+            for image_id in deleted_image_ids:
+                try:
+                    image_to_delete = Image.objects.get(pk=image_id)
+                    image_to_delete.is_active=False
+                    image_to_delete.save()
+                    pack.image.remove(image_to_delete)
+                    pack.save()
+                except Image.DoesNotExist:
+                    pass
+
+
+            deleted_asset_ids = data_dict.get('assets_deleted', [])
+            for asset_id in deleted_asset_ids:
+                try:
+                    asset_to_delete = Asset.objects.get(pk=asset_id)
+                    pack.assets.remove(asset_to_delete)
+                except Asset.DoesNotExist:
+                    pass
+
+        # Update total_assets count
         total_assets = pack.assets.count()
         pack.total_assets = total_assets
-
         pack.save()
 
         return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id})

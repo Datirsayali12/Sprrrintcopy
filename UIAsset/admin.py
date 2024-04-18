@@ -8,9 +8,9 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_at', 'updated_at')
 
 
-@admin.register(SubCategory)
-class SubCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
+# @admin.register(SubCategory)
+# class SubCategoryAdmin(admin.ModelAdmin):
+#     list_display = ('name', 'created_at', 'updated_at')
 
 
 @admin.register(Tag)
@@ -43,7 +43,7 @@ class AssetTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Pack)
 class PackAdmin(admin.ModelAdmin):
-    list_display = ('id','title', 'base_price','discount_price', 'creator', 'category', 'created_at', 'updated_at')
+    list_display = ('id','name', 'base_price','discount_price', 'creator', 'category', 'created_at', 'updated_at')
 
 
 @admin.register(Asset)
