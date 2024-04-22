@@ -122,10 +122,10 @@ def upload_pack():
         "data": json.dumps({
         "name": "pack23",
         "category_id": 1,
-        'credits': 100,
-        'tags': ['tag1', 'tag2'],
-        'is_free': False,
-        'asset_ids': [1, 2],
+        "credits": 100,
+        "tags": ['tag1', 'tag2'],
+        "is_free": False,
+        "asset_ids": [1, 2],
             })
     }
 
@@ -134,7 +134,7 @@ def upload_pack():
         ('hero_images',('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png')),
         ('hero_images',('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png'))
     ]
-    response = requests.post(url, data=data, files=files)
+    response = requests.post(url, json=data, files=files)
 
    
     return response.status_code, response.json()
@@ -198,16 +198,15 @@ def update_pack():
 
 
 def create_from_existing():
-    url="http://127.0.0.1:8000/Dashboard/create-from-existing/"
 
-    data = {
-      "data": json.dumps({
-      "name": "New Asset Name",
-      "asset_id": 1,
-      "credits": 100,
-      "is_free": True
-       })
-    }
+        url = "http://127.0.0.1:8000/Dashboard/create-from-existing/"
 
-    response=requests.post(url,data=data)
-    return response.json()
+        data = {
+            "name": "New",
+            "asset_id": 1,
+            "credits": 100,
+            "is_free": True,
+        }
+
+        response = requests.post(url, json=data)  # Send data as JSON
+        return response.json()

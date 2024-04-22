@@ -13,7 +13,7 @@ from django.db.models import Q
 import json
 from django.core.exceptions import ValidationError
 from zipfile import ZipFile
-
+from django.db import IntegrityError
 @api_view(['POST'])
 def upload_asset(request):
     if request.method == 'POST':
@@ -118,42 +118,32 @@ def upload_asset(request):
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
-    
 @api_view(['POST'])
 def create_from_existing(request):
     if request.method == 'POST':
-        data = request.data.get('data')
-        data_dict = json.loads(data)
-        required_fields = ['name', 'asset_id', 'credits', 'is_free']
+        data = request.data
+
+        # Check for required fields
+        required_fields = ['name', 'asset_id', 'credits']
         for field in required_fields:
-            if field not in data or not data_dict[field]:
+            if field not in data or not data[field]:
                 return JsonResponse({'error': f'{field} is required'}, status=400)
 
-        asset_id = data_dict.get('asset_id','')
+        asset_id = data.get('asset_id', '')
 
         try:
             existing_asset = Asset.objects.get(id=asset_id)
         except Asset.DoesNotExist:
             return JsonResponse({'error': 'Asset does not exist'}, status=404)
 
+        # Set default value for is_free if not provided
+        is_free = data.get('is_free', False)
 
-        is_free = data_dict.get('is_free','')
-        if is_free not in [True, False]:
-            return JsonResponse({'error': 'is_free must be either true or false'}, status=400)
-
-        if (existing_asset.name == data_dict.get('name','') and
-            existing_asset.base_price == data.get('credits','') and
-            existing_asset.is_free == is_free ):
-
-            return JsonResponse({'existing_asset_id': existing_asset.id}, status=200)
-        else:
-    
-            creator = User.objects.first()
-
+        try:
             new_asset = Asset.objects.create(
-                name=data['name'],
-                creator=creator,
-                base_price=data['credits'],
+                name=data.get('name', ''),
+                creator=User.objects.first(),
+                base_price=data.get('credits', 0),
                 category=existing_asset.category,
                 is_free=is_free,
             )
@@ -165,6 +155,8 @@ def create_from_existing(request):
                 new_asset.asset_file.add(asset_file)
 
             return JsonResponse({'created_asset_id': new_asset.id}, status=201)
+        except IntegrityError as e:
+            return JsonResponse({'error': str(e)}, status=400)
     else:
         return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
 
