@@ -38,6 +38,7 @@ class Tag(models.Model):
     name = models.CharField(unique=True,max_length=255, help_text="this for tag name")
     updated_at = models.DateField(auto_now=True)
     created_at = models.DateField(auto_now_add=True)
+    #slug=AutoSlugField(name="name")
 
     def __str__(self):
         return self.name
@@ -92,7 +93,7 @@ class AssetFile(models.Model):
     
 
 class Asset(models.Model):
-    name = models.CharField(max_length=255, help_text="this for Asset name")
+    name = models.CharField(max_length=255,unique=True, help_text="this for Asset name")
     #pack= models.ForeignKey(Pack,on_delete=models.SET_NULL, null=True,
                                 #help_text="this indicate that asset relate to particular product")
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

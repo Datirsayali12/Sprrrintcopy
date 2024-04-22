@@ -1,0 +1,35 @@
+import requests
+url = ""
+payload = {'title': 'Pack1',
+'base_price': '100',
+'discount_price': '10',
+'tags': 'food',
+'tags': 'business',
+'asset_ids': '1',
+'asset_ids': '3',
+'asset_ids': '5',
+'category_Id': '12'}
+files=[
+  ('files',('WhatsApp Image 2024-04-16 at 16.13.11 (1).jpeg',open('/C:/Users/rishi/Downloads/WhatsApp Image 2024-04-16 at 16.13.11 (1).jpeg','rb'),'image/jpeg')),
+  ('files',('WhatsApp Image 2024-04-16 at 16.13.11.jpeg',open('/C:/Users/rishi/Downloads/WhatsApp Image 2024-04-16 at 16.13.11.jpeg','rb'),'image/jpeg')),
+  ('hero_image',('living room 360.png',open('/C:/Users/rishi/Downloads/living room 360.png','rb'),'image/png')),
+  ('hero_image',('kitchen 360 (1).png',open('/C:/Users/rishi/Downloads/kitchen 360 (1).png','rb'),'image/png'))
+]
+headers = {}
+response = requests.request("POST", url, headers=headers, data=payload, files=files)
+
+
+
+
+
+import requests
+
+url = "http://13.234.20.71:8000/Dashboard/upload-asset/"
+
+payload = {'data': '{"name": "Asset16", "is_active": "true", "tags": ["tag3", "tag2"], "category_id": 1, "base_price": 100, "discount_price": 10,
+"is_free":"true"}'}
+files=[
+  ('asset_files',('file1.png',open('/C:/Users/Lenovo/Downloads/file1.png','rb'),'image/png')),
+  ('thumbnail_images',('file1.png',open('/C:/Users/Lenovo/Downloads/file1.png','rb'),'image/png')),
+  ('thumbnail_images',('file1.png',open('/C:/Users/Lenovo/Downloads/file1.png','rb'),'image/png'))
+]
