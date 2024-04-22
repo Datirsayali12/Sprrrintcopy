@@ -19,7 +19,6 @@ def upload_asset(request):
     if request.method == 'POST':
         data=request.data.get('data')
         data_dict = json.loads(data)
-        print(type(data_dict))
 
         try:
             asset_name = data_dict.get('name')
@@ -78,7 +77,7 @@ def upload_asset(request):
 
           
 
-            is_free= data_dict.get('is_free', '')
+            is_free= data_dict.get('is_free', False)
             print(is_free)
                     
             user = User.objects.first() 
@@ -123,14 +122,14 @@ def upload_asset(request):
 @api_view(['POST'])
 def create_from_existing(request):
     if request.method == 'POST':
-        data = request.data
-        print(data)
-        required_fields = ['name', 'asset_id', 'base_price', 'discount_price', 'is_free']
+        data = request.data.get('data')
+        data_dict = json.loads(data)
+        required_fields = ['name', 'asset_id', 'credits', 'is_free']
         for field in required_fields:
-            if field not in data or not data[field]:
+            if field not in data or not data_dict[field]:
                 return JsonResponse({'error': f'{field} is required'}, status=400)
 
-        asset_id = data['asset_id']
+        asset_id = data_dict.get('asset_id','')
 
         try:
             existing_asset = Asset.objects.get(id=asset_id)
@@ -138,13 +137,12 @@ def create_from_existing(request):
             return JsonResponse({'error': 'Asset does not exist'}, status=404)
 
 
-        is_free = data['is_free']
+        is_free = data_dict.get('is_free','')
         if is_free not in [True, False]:
             return JsonResponse({'error': 'is_free must be either true or false'}, status=400)
 
-        if (existing_asset.name == data['name'] and
-            existing_asset.base_price == data['base_price'] and
-            existing_asset.discount_price == data['discount_price'] and
+        if (existing_asset.name == data_dict.get('name','') and
+            existing_asset.base_price == data.get('credits','') and
             existing_asset.is_free == is_free ):
 
             return JsonResponse({'existing_asset_id': existing_asset.id}, status=200)
@@ -155,8 +153,7 @@ def create_from_existing(request):
             new_asset = Asset.objects.create(
                 name=data['name'],
                 creator=creator,
-                base_price=data['base_price'],
-                discount_price=data['discount_price'],
+                base_price=data['credits'],
                 category=existing_asset.category,
                 is_free=is_free,
             )
@@ -285,7 +282,7 @@ def generate_unique_filename(filename):
 
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 def get_selected_existing(request):
 
     user = User.objects.first()  
@@ -343,19 +340,21 @@ def update_asset(request, asset_id):
             # except (ValueError, Category.DoesNotExist):
             #     return JsonResponse({'error': 'Invalid category ID'}, status=400)
 
-            is_free_str = data_dict.get('is_free', '')
+            is_free_str = data_dict.get('is_free',False)
 
             asset.is_free = is_free_str
 
             # Handle tags
             added_tags = data_dict.get('tags_added', [])
+            print(added_tags)
             deleted_tags = data_dict.get('tags_deleted', [])
             for tag_name in added_tags:
                 tag, _ = Tag.objects.get_or_create(name=tag_name)
                 asset.tags.add(tag)
-            for tag_name in deleted_tags:
-                asset.tags.filter(name=tag_name).delete()
+            for tag_id in deleted_tags:
+                asset.tags.remove(tag_id)
             asset.save()
+
 
 
             asset_hero_images = []
@@ -621,26 +620,28 @@ def update_pack(request, pack_id):
         # category_id = data_dict.get('category_id', pack.category.id)
         # category = Category.objects.get(pk=category_id)
         # pack.category = category
-        is_free= data_dict.get('is_free', '')
+        is_free= data_dict.get('is_free', False)
         pack.is_free=is_free
 
-        asset_ids = data_dict.get('asset_ids', [])
-        for asset_id in asset_ids:
+        deleted_asset_ids = data_dict.get('deleted_asset_ids', [])
+        print(deleted_asset_ids)
+        for asset_id in deleted_asset_ids:
             try:
-                asset = Asset.objects.get(pk=int(asset_id))
-                pack.assets.add(asset)
+                asset_to_delete = Asset.objects.get(pk=asset_id)
+                pack.assets.remove(asset_to_delete)
             except Asset.DoesNotExist:
                 pass
 
 
         added_tags = data_dict.get('tags_added', [])
         deleted_tags = data_dict.get('tags_deleted', [])
+        print(deleted_tags)
         for tag_name in added_tags:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
             pack.tags.add(tag)
         pack.save()
-        for tag_name in deleted_tags:
-            pack.tags.filter(name=tag_name).delete()
+        for tag_id in deleted_tags:
+            pack.tags.remove(tag_id)
         pack.save()
 
         pack_image_objects = []
@@ -663,7 +664,7 @@ def update_pack(request, pack_id):
 
 
 
-            deleted_image_ids = data_dict.get('images_deleted', [])
+            deleted_image_ids = data_dict.get('deleted_image_ids', [])
             for image_id in deleted_image_ids:
                 try:
                     image_to_delete = Image.objects.get(pk=image_id)
@@ -675,7 +676,8 @@ def update_pack(request, pack_id):
                     pass
 
 
-            deleted_asset_ids = data_dict.get('assets_deleted', [])
+            deleted_asset_ids = data_dict.get('deleted_asset_ids', [])
+            print(deleted_asset_ids)
             for asset_id in deleted_asset_ids:
                 try:
                     asset_to_delete = Asset.objects.get(pk=asset_id)

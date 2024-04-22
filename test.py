@@ -1,30 +1,12 @@
 import requests
 
 
-def get_existing():
-    
-        url = 'http://your-api-url/create_from_existing/'
-
-        data = {
-            'name': 'New Asset Name',
-            'asset_id': 1,  
-            'credits': 100,  
-            'is_free': False  
-           
-        }
-
-    
-        response = requests.post(url, data=data)
-
-        print(response.json())
-
-
 def get_tags():
-    url = 'http://127.0.0.1:8000/Dashboard/get-tags/'  # Update with your actual URL
+    url = 'http://127.0.0.1:8000/Dashboard/get-tags/'
     try:
         response = requests.get(url)
-        response.raise_for_status()  # Raise an HTTPError for bad status codes
-        return response.json()  # Assuming response is JSON
+        response.raise_for_status()
+        return response.json()
     except requests.exceptions.ConnectionError as e:
         print("Connection error:", e)
     except requests.exceptions.HTTPError as e:
@@ -35,11 +17,11 @@ def get_tags():
 
 
 def get_pack_data():
-    url = 'http://127.0.0.1:8000/Dashboard/get-pack-details/'  # Update with your actual URL
+    url = 'http://127.0.0.1:8000/Dashboard/get-all-packs/'
     try:
         response = requests.get(url)
-        response.raise_for_status()  # Raise an HTTPError for bad status codes
-        return response.json()  # Assuming response is JSON
+        response.raise_for_status()
+        return response.json()
     except requests.exceptions.ConnectionError as e:
         print("Connection error:", e)
     except requests.exceptions.HTTPError as e:
@@ -49,56 +31,24 @@ def get_pack_data():
     return None  
 
 
-import requests
-
-def upload_asset():
-    url = "http://127.0.0.1:8000/Dashboard/upload-asset/"
-
-    payload = {
-        'name': 'Asset19',
-        'credits': '20',
-        'is_active': 'True',
-        'tags': ['tag3', 'tag2'],  
-        'category_id': '1'
-    }
-
-    files = [
-        ('files', ('WhatsApp Image 2024-04-01 at 11,19,29 PM-photoaidcom-cropped (1).jpeg', open('C:\\Users\\sayal\\Downloads\\WhatsApp Image 2024-04-01 at 11,19,29 PM-photoaidcom-cropped (1).jpeg', 'rb'), 'image/jpeg')),
-        ('image', ('fotor-20240401232828.png', open('C:\\Users\\sayal\\Downloads\\fotor-20240401232828.png', 'rb'), 'image/png'))
-    ]
-    
-    headers = {
-     
-        'Content-Type': 'application/json'  
-    }
-
-    response = requests.post(url, headers=headers, data=payload, files=files)
-    print(response)
-
-    return response.text
-
 
 def get_existing():
-    url = 'http://127.0.0.1:8000/Dashboard/get-existing/'  
+    url = 'http://127.0.0.1:8000/Dashboard/get-selected-existing/'
 
   
     data = {
         "asset_ids": [1]  
     }
 
- 
     response = requests.post(url, json=data)
 
     return response.json()
 
 def get_pack_by_title():
-    url="http://127.0.0.1:8000/Dashboard/get-packs-by-title/"
+    url="http://127.0.0.1:8000/Dashboard/get-packs-by-title-or-tag/?query=pa"
 
-    params={
-        "title":"p"
-    }
 
-    response = requests.get(url, params=params)
+    response = requests.get(url)
 
     return response.json()
 
@@ -112,7 +62,7 @@ def delete_asset():
     return response.json()
 
 
-def delete_product():
+def delete_pack():
     url="http://127.0.0.1:8000/Dashboard/delete-product/1/"
 
 
@@ -136,52 +86,53 @@ def delete_assets():
 
 
 def upload_asset():
-    url = 'http://127.0.0.1:8000/Dashboard/upload-asset/'  
+    url = 'http://127.0.0.1:8000/Dashboard/upload-asset/'
 
- 
+    # Define the JSON data
     data = {
-        'name': 'Example Asset',
-        'category_id': 1,  
-        'credits': 10,
-        'is_active': True,
-        'tags': ['tag1', 'tag2']  
+        "data": json.dumps({
+            "name": "Asset17",
+            "tags": ["tag3", "tag2"],
+            "category_id": 1,
+            "credits": 10,
+            "is_free": True  # 'true' should be boolean, not string
+        })
     }
 
-   
-    files=[
-        ('files',('file1.txt',open('E:\\test4\\file1.txt','rb'),'text/plain')),
-        ('image',('file2.txt',open('E:\\test4\\file2.txt','rb'),'text/plain')),
-        
-        ]
+    # Define the files to be uploaded
+    files = [
+        ('asset_files', ('file1.png', open('C:\\Users\\Lenovo\\Downloads\\file1.png', 'rb'), 'image/png')),
+        ('thumbnail_images', ('file1.png', open('C:\\Users\\Lenovo\\Downloads\\file1.png', 'rb'), 'image/png'))
+    ]
 
-
+    # Send the POST request
     response = requests.post(url, data=data, files=files)
 
-    
+    # Return the JSON response
     return response.json()
 
 
-
+import json
 
 
 def upload_pack():
     url = 'http://127.0.0.1:8000/Dashboard/upload-pack/'
 
     data = {
-        'title': 'Example Pack',
-        'category_id': 1,
-        'product_type': 'single',
-        'base_price': 100,
-        'discount_price': 80,
-        'no_of_items': 5,
+        "data": json.dumps({
+        "name": "pack23",
+        "category_id": 1,
+        'credits': 100,
         'tags': ['tag1', 'tag2'],
-        'asset_ids': [5]  
+        'is_free': False,
+        'asset_ids': [1, 2],
+            })
     }
 
     
     files = [
-        ('hero_images',('WhatsApp Image 2024-04-01 at 11,19,29 PM-photoaidcom-cropped.jpeg',open('C:\\Users\\sayal\\Downloads\\WhatsApp Image 2024-04-01 at 11,19,29 PM-photoaidcom-cropped.jpeg','rb'),'image/jpeg')),
-        ('hero_images',('fotor-20240401232828.png',open('C:\\Users\\sayal\\Downloads\\fotor-20240401232828.png','rb'),'image/png'))
+        ('hero_images',('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png')),
+        ('hero_images',('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png'))
     ]
     response = requests.post(url, data=data, files=files)
 
@@ -189,31 +140,29 @@ def upload_pack():
     return response.status_code, response.json()
 
 
-
+#********************************************Update Assets and pack***********************************
 def update_asset():
-    url = 'http://127.0.0.1:8000/Dashboard/update-asset/2/'  
+    url = 'http://127.0.0.1:8000/Dashboard/update-asset/2/'
 
- 
     data = {
-        'name': 'Example1',
-        'category_id': 1,  
-        'credits': 10,
-        'is_active': 'true',
-        'tags': ['tag1', 'tag2','tag3'] 
- 
+        "data":json.dumps( {
+            "name": "Updated Asset Name",
+            "credits": 20,
+            "is_free": True,
+            "tags_added": ["new_tag1", "new_tag2"],
+            "tags_deleted": [1,2],
+            "deleted_thumbnail_images_ids ": [60,61],
+            "deleted_asset_files_ids": [54,55]
+        })
     }
 
-   
-    files=[
-        ('files',('file1.txt',open('E:\\test4\\file1.txt','rb'),'text/plain')),
-        ('image',('file2.txt',open('E:\\test4\\file2.txt','rb'),'text/plain')),
-        
-        ]
+    files = [
+        ('asset_files', ('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png')),
+        ('thumbnail_images', ('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png')),
+    ]
 
+    response = requests.put(url, data=data,files=files)
 
-    response = requests.put(url, data=data, files=files)
-
-    
     return response.json()
 
 
@@ -224,22 +173,41 @@ def update_pack():
     url = 'http://127.0.0.1:8000/Dashboard/update-pack/2/'
 
     data = {
-        'title': 'Example Pack12',
-        'category_id': 1,
-        'product_type': 'single',
-        'base_price': 100,
-        'discount_price': 80,
-        'no_of_items': 5,
-        'tags': ['tag1', 'tag2'],
-        'asset_ids': [5]  
+         "data":json.dumps({"name": "pack27",
+         "credits": 10,
+         "asset_ids": [1, 2],
+         "tags_added": ["tag125"],
+         "tags_deleted": [1, 2, 3,7],
+         "deleted_image_ids": [48, 49],
+         "is_free": True,
+         "deleted_asset_ids": [1]
+
+     })
     }
 
     
     files = [
-        ('hero_images',('WhatsApp Image 2024-04-01 at 11,19,29 PM-photoaidcom-cropped.jpeg',open('C:\\Users\\sayal\\Downloads\\WhatsApp Image 2024-04-01 at 11,19,29 PM-photoaidcom-cropped.jpeg','rb'),'image/jpeg')),
-        ('hero_images',('fotor-20240401232828.png',open('C:\\Users\\sayal\\Downloads\\fotor-20240401232828.png','rb'),'image/png'))
+        ('hero_images',('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png')),
+        ('hero_images',('file1.png',open('C:\\Users\\Lenovo\\Downloads\\file1.png','rb'),'image/png'))
     ]
-    response = requests.put(url, data=data, files=files)
+    response = requests.put(url, data=data,files=files)
 
     print(response)
     return response.status_code, response.json()
+
+
+
+def create_from_existing():
+    url="http://127.0.0.1:8000/Dashboard/create-from-existing/"
+
+    data = {
+      "data": json.dumps({
+      "name": "New Asset Name",
+      "asset_id": 1,
+      "credits": 100,
+      "is_free": True
+       })
+    }
+
+    response=requests.post(url,data=data)
+    return response.json()

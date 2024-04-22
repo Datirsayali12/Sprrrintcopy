@@ -9,8 +9,6 @@ def run():
     User = get_user_model()
 
     c = Category.objects.first()
-    s = Subcategory.objects.first()
-    pt = ProductType.objects.first()
     t = Tag.objects.get(id=1)
     at=AssetType.objects.first()
    

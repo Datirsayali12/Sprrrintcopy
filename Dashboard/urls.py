@@ -13,7 +13,7 @@ urlpatterns=[
     path('get-tags/',views.get_tag_and_category),
     path('upload-asset/',views.upload_asset),
     path('upload-pack/',views.upload_pack),
-    path('get-seleccted-existing/',views.get_selected_existing),
+    path('get-selected-existing/',views.get_selected_existing),
     path('update-asset/<int:asset_id>/',views.update_asset),
     path('get-all-packs/',views.get_all_packs),
     path('update-pack/<int:pack_id>/',views.update_pack),
