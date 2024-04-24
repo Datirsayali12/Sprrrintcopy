@@ -14,6 +14,8 @@ import json
 from django.core.exceptions import ValidationError
 from zipfile import ZipFile
 from django.db import IntegrityError
+
+@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def upload_asset(request):
     if request.method == 'POST':
@@ -83,7 +85,7 @@ def upload_asset(request):
             user = User.objects.first() 
             asset = Asset.objects.create(
                 name=data_dict.get('name'),
-                creator=user,
+                creator=request.user,
                 base_price=data_dict.get('credits'),
                 category=category,
                 is_free=is_free
@@ -98,7 +100,7 @@ def upload_asset(request):
     
             tag_names = data_dict.get('tags', [])
             if not tag_names:
-                return JsonResponse({'error': 'At least one tag is required'}, status=400)
+                return JsonResponse({'error': 'At least one tag is required'}, status=status.HTTP_400_BAD_REQUEST)
             
             
             for tag_name in tag_names:
@@ -106,18 +108,19 @@ def upload_asset(request):
                 asset.tags.add(tag)
 
            
-            return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=201,safe=False)
+            return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=status.HTTP_201_CREATED,safe=False)
 
         except ValidationError as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     else:
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
+@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def create_from_existing(request):
     if request.method == 'POST':
@@ -127,14 +130,14 @@ def create_from_existing(request):
         required_fields = ['name', 'asset_id', 'credits']
         for field in required_fields:
             if field not in data or not data[field]:
-                return JsonResponse({'error': f'{field} is required'}, status=400)
+                return JsonResponse({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         asset_id = data.get('asset_id', '')
 
         try:
             existing_asset = Asset.objects.get(id=asset_id)
         except Asset.DoesNotExist:
-            return JsonResponse({'error': 'Asset does not exist'}, status=404)
+            return JsonResponse({'error': 'Asset does not exist'}, status=status.HTTP_404_NOT_FOUND)
 
         # Set default value for is_free if not provided
         is_free = data.get('is_free', False)
@@ -142,7 +145,7 @@ def create_from_existing(request):
         try:
             new_asset = Asset.objects.create(
                 name=data.get('name', ''),
-                creator=User.objects.first(),
+                creator=request.user,
                 base_price=data.get('credits', 0),
                 category=existing_asset.category,
                 is_free=is_free,
@@ -154,11 +157,11 @@ def create_from_existing(request):
             for asset_file in existing_asset.asset_file.all():
                 new_asset.asset_file.add(asset_file)
 
-            return JsonResponse({'created_asset_id': new_asset.id}, status=201)
+            return JsonResponse({'created_asset_id': new_asset.id}, status=status.HTTP_201_CREATED)
         except IntegrityError as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     else:
-        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     #name,credits,asset_id,is_free=False
     #get asset instance from asset_id
@@ -168,43 +171,39 @@ def create_from_existing(request):
     #save()
 
 
-
-
- 
+@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def upload_pack(request):
-    #['{"title": "pack23","base_price":100,"discount_price": 10,"tags": ["tag1","tag2"],"asset_ids": [2],"category_id": 1}']
-    #{'title': ['pack16'], 'base_price': ['100'], 'discount_price': ['10'], 'tags': ['tag1,tag2'], 'asset_ids': ['1,2'], 'category_id': ['1'], 'total_assets': ['10'], 'hero_images': [<InMemoryUploadedFile: file1.txt (text/plain)>]}
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     try:
-        data=request.data.get('data')
+        data = request.data.get('data')
         data_dict = json.loads(data)
-        print(data_dict)
-        u = User.objects.first()
 
-        required_fields = ['name', 'category_id','credits','tags',"is_free"]
+        required_fields = ['name', 'category_id', 'credits', 'tags', 'is_free']
         for field in required_fields:
             if field not in data_dict:
-                return JsonResponse({'error': f'{field} is required'}, status=400)
+                return JsonResponse({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         numeric_fields = ['category_id', 'credits']
         for field in numeric_fields:
-            if not str(data_dict[field]).isdigit():
-                return JsonResponse({'error': f'{field} must be a valid number'}, status=400)
+            if not str(data_dict.get(field)).isdigit():
+                return JsonResponse({'error': f'{field} must be a valid number'}, status=status.HTTP_400_BAD_REQUEST)
 
         if 'hero_images' not in request.FILES or not request.FILES.getlist('hero_images'):
-            return JsonResponse({'error': 'At least one hero image is required'}, status=400)
+            return JsonResponse({'error': 'At least one hero image is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         category_id = data_dict['category_id']
-        category = Category.objects.get(pk=category_id)
+        try:
+            category = Category.objects.get(pk=category_id)
+        except Category.DoesNotExist:
+            return JsonResponse({'error': 'Invalid category ID'}, status=status.HTTP_400_BAD_REQUEST)
 
-        is_free=data_dict['is_free']
+        is_free = data_dict['is_free']
 
         pack_image_objects = []
         uploaded_files = request.FILES.getlist('hero_images')
-        print(uploaded_files)
 
         for uploaded_file in uploaded_files:
             file_name = generate_unique_filename(uploaded_file.name)
@@ -213,58 +212,47 @@ def upload_pack(request):
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
 
-    
-
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file,_ = Image.objects.get_or_create(url=file_url)
+            asset_file, _ = Image.objects.get_or_create(url=file_url)
             pack_image_objects.append(asset_file)
 
         name = data_dict.get('name')
         if Pack.objects.filter(name=name).exists():
-            return JsonResponse({'error': 'A pack with this title already exists'}, status=400)
+            return JsonResponse({'error': 'A pack with this title already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
         pack = Pack(
             name=data_dict.get('name'),
-            creator=u,
+            creator=request.user,
             category=category,
             base_price=data_dict.get('credits'),
-            is_free=data_dict.get('is_free')
-
+            is_free=is_free
         )
         pack.save()
-       
-        asset_ids = data_dict.get('asset_ids') 
-        if asset_ids: 
-            for asset_id in asset_ids:
-                try:
-                    asset = Asset.objects.get(id=int(asset_id))
-                    pack.assets.add(asset)
-                    
-                except Asset.DoesNotExist:
-                    pass
-            pack.save()
+
+        asset_ids = data_dict.get('asset_ids', [])
+        for asset_id in asset_ids:
+            try:
+                asset = Asset.objects.get(id=int(asset_id))
+                pack.assets.add(asset)
+            except Asset.DoesNotExist:
+                pass
 
         tag_names = data_dict.get('tags', [])
-        print(tag_names)
-       
         for tag_name in tag_names:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
             pack.tags.add(tag)
 
-        print(pack.tags.name)
-
         pack.image.add(*pack_image_objects)
         pack.save()
 
-        total_assets =pack.assets.count()
-        pack.total_assets=total_assets
+        total_assets = pack.assets.count()
+        pack.total_assets = total_assets
         pack.save()
 
+        return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id}, status=status.HTTP_201_CREATED)
 
-        return JsonResponse({'message': 'Pack created successfully',"pack_id":pack.id})
-    
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def generate_unique_filename(filename):
@@ -272,8 +260,7 @@ def generate_unique_filename(filename):
     _, ext = os.path.splitext(filename)
     return f"{uuid.uuid4()}{ext}"
 
-
-
+@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def get_selected_existing(request):
 
@@ -281,7 +268,7 @@ def get_selected_existing(request):
     data=request.data
     asset_ids1=data['asset_ids']
     print(asset_ids1)
-    assets = Asset.objects.filter(id__in=asset_ids1,is_active=True)
+    assets = Asset.objects.filter(id__in=asset_ids1,is_active=True,creator=request.user.id)
     print(assets)
 
     all_assets = []
@@ -300,10 +287,10 @@ def get_selected_existing(request):
 
         all_assets.append(data)
 
-    return Response({"all_assets": all_assets})
+    return JsonResponse({"all_assets": all_assets},status=status.HTTP_200_OK)
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['PUT'])
 def update_asset(request, asset_id):
     if request.method == 'PUT':
@@ -413,33 +400,33 @@ def update_asset(request, asset_id):
                 except AssetFile.DoesNotExist:
                     pass
 
-            return JsonResponse({'message': 'Asset updated successfully.', 'asset_id': asset.id}, status=200)
+            return JsonResponse({'message': 'Asset updated successfully.', 'asset_id': asset.id}, status=status.HTTP_200_OK)
 
         except Asset.DoesNotExist:
-            return JsonResponse({'error': 'Asset not found'}, status=404)
+            return JsonResponse({'error': 'Asset not found'}, status=status.HTTP_404_NOT_FOUND)
 
         except ValidationError as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     else:
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_all_packs(request):
     u=User.objects.first()
     try:
-        packs = Pack.objects.all()
+        packs = Pack.objects.filter(is_active=True,creator=request.user)
         packs_data = []
 
         for pack in packs:
-            assets = pack.assets.all()
+            assets = pack.assets.filter(is_active=True)
 
             pack_data = {
                 'id': pack.id,
@@ -476,16 +463,17 @@ def get_all_packs(request):
 
             packs_data.append(pack_data)
 
-        return JsonResponse({'packs': packs_data}, status=200)
+        return JsonResponse({'packs': packs_data}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_packs_by_title_or_tag(request):
     try:
         query = request.GET.get('query', '')
-        packs = Pack.objects.filter(is_active=True)
+        packs = Pack.objects.filter(is_active=True,creator=request.user)
 
         if query:
             packs = packs.filter(Q(name__icontains=query) | Q(tags__name__icontains=query))
@@ -530,46 +518,52 @@ def get_packs_by_title_or_tag(request):
 
             packs_data.append(pack_data)
 
-        return JsonResponse({'packs': packs_data}, status=200)
+        return JsonResponse({'packs': packs_data}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_assets_by_title_and_tag(request):
     query = request.GET.get('query', '')
 
   
-    assets = Asset.objects.filter(
+    all_assets = Asset.objects.filter(
         Q(name__icontains=query) | Q(tags__name__icontains=query)
     ).distinct()
     u=User.objects.first()
+    assets=all_assets.filter(is_active=True,creator=request.user.id)
 
-   
     assets_data = []
     for asset in assets:
         asset_data = {
             'id': asset.id,
             'name': asset.name,
-            'creator': u.id,
             'category': asset.category.name,
+            'base_price': asset.base_price,
+            'discount_price': asset.discount_price,
             'is_free': asset.is_free,
             'is_active': asset.is_active,
+            'created_at': asset.created_at,
+            'updated_at': asset.updated_at,
+            'tags': [{"tag_id":tag.id,"tag_name":tag.name} for tag in asset.tags.all()],
+            'images': [{"img_id":img.id,"img_url":img.url} for img in asset.image.all()],
+            'asset_file': [{"file_id":file.id,"file_url":file.url} for file in asset.asset_file.all()]
         }
         assets_data.append(asset_data)
 
-    return JsonResponse({'assets': assets_data})
+    return JsonResponse({'assets': assets_data},status=status.HTTP_200_OK)
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['DELETE'])
-#@permission_classes([IsAuthenticated])
 def delete_product(request, product_id):
     try:
         product = Pack.objects.get(id=product_id)
         product.is_active= False
         product.save()
-        return JsonResponse({"message": "Product soft deleted successfully"})
+        return JsonResponse({"message": "Product soft deleted successfully"},status=status.HTTP_204_NO_CONTENT)
     except Pack.DoesNotExist:
         return JsonResponse({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
@@ -578,15 +572,14 @@ def delete_product(request, product_id):
 
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['DELETE'])
-#@permission_classes([IsAuthenticated])
 def delete_asset(request, asset_id):
     try:
         asset = Asset.objects.get(id=asset_id)
         asset.is_active= False
         asset.save()
-        return JsonResponse({"message": "Asset soft deleted successfully"})
+        return JsonResponse({"message": "Asset soft deleted successfully"},status=status.HTTP_204_NO_CONTENT)
     except Pack.DoesNotExist:
         return JsonResponse({"error": "Asset not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
@@ -594,11 +587,11 @@ def delete_asset(request, asset_id):
 
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['PUT'])
 def update_pack(request, pack_id):
     if request.method != 'PUT':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     try:
         pack = Pack.objects.get(pk=pack_id)
@@ -682,19 +675,19 @@ def update_pack(request, pack_id):
         pack.total_assets = total_assets
         pack.save()
 
-        return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id})
+        return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id},status=status.HTTP_200_OK)
 
     except Pack.DoesNotExist:
-        return JsonResponse({'error': 'Pack not found'}, status=404)
+        return JsonResponse({'error': 'Pack not found'}, status=status.HTTP_404_NOT_FOUND)
 
     except ValidationError as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_tag_and_category(request):
     categories=Category.objects.all()
@@ -714,11 +707,11 @@ def get_tag_and_category(request):
 
 
 
-
+@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_all_assets(request):
     if request.method == 'GET':
-        assets=Asset.objects.all()
+        assets=Asset.objects.filter(is_active=True,creator=request.user.id)
         u=User.objects.first()
         all_assets=[]
         for asset in assets:
@@ -726,7 +719,6 @@ def get_all_assets(request):
                 "id":asset.id,
                 "name":asset.name,
                 "category":asset.category.name,
-                "creator":u.id,
                 "base_price":asset.base_price,
                 "discount_price":asset.discount_price,
                 "hero_images":[{"image_id":image.id,"image_url":image.url } for image in asset.image.all()],
@@ -735,7 +727,7 @@ def get_all_assets(request):
                 
             }
             all_assets.append(data)
-        return JsonResponse({'all_assets':all_assets}, status=200)
+        return JsonResponse({'all_assets':all_assets}, status=status.HTTP_200_OK)
 
 
 
