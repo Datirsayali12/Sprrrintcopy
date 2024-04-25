@@ -16,6 +16,8 @@ from django.urls import reverse
 from django.utils.encoding import force_bytes,  force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from .models import User
+from rest_framework.authentication import BaseAuthentication
+from rest_framework.permissions import AllowAny
 
 def get_tokens_for_user(user):
   refresh = RefreshToken.for_user(user)
@@ -25,6 +27,8 @@ def get_tokens_for_user(user):
   }
 
 class UserRegistrationView(APIView):
+    authentication_classes = []  # Exclude authentication for this view
+    permission_classes = [AllowAny]
     def post(self, request, format=None):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -49,6 +53,8 @@ class UserRegistrationView(APIView):
 
 
 class CreatorRegistrationView(APIView):
+    authentication_classes = []  # Exclude authentication for this view
+    permission_classes = [AllowAny]
     def post(self, request, format=None):
         serializer = CreatorRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -70,6 +76,8 @@ class CreatorRegistrationView(APIView):
         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class EmailVerificationView(APIView):
+    authentication_classes = []  # Exclude authentication for this view
+    permission_classes = [AllowAny]
     def get(self, request, uidb64, token):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
@@ -88,6 +96,8 @@ class EmailVerificationView(APIView):
 
 
 class UserLoginView(APIView):
+  authentication_classes = []  # Exclude authentication for this view
+  permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]
   def post(self, request, format=None):
     serializer = UserLoginSerializer(data=request.data)
@@ -102,6 +112,8 @@ class UserLoginView(APIView):
       return JsonResponse({'errors':{'non_field_errors':['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
 
 class UserProfileView(APIView):
+  authentication_classes = []  # Exclude authentication for this view
+  permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]
   permission_classes = [IsAuthenticated]
   def get(self, request, format=None):
@@ -110,6 +122,8 @@ class UserProfileView(APIView):
 
 
 class UserChangePasswordView(APIView):
+  authentication_classes = []  # Exclude authentication for this view
+  permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]  # Assuming UserRenderer is defined elsewhere
   permission_classes = [IsAuthenticated]
 
@@ -120,6 +134,8 @@ class UserChangePasswordView(APIView):
 
 
 class SendPasswordResetEmailView(APIView):
+  authentication_classes = []  # Exclude authentication for this view
+  permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]
   def post(self, request, format=None):
     serializer = SendPasswordResetEmailSerializer(data=request.data)
@@ -127,6 +143,8 @@ class SendPasswordResetEmailView(APIView):
     return JsonResponse({'msg':'Password Reset link send. Please check your Email'}, status=status.HTTP_200_OK)
 
 class UserPasswordResetView(APIView):
+  authentication_classes = []  # Exclude authentication for this view
+  permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]
   def post(self, request, uid, token, format=None):
     serializer = UserPasswordResetSerializer(data=request.data, context={'uid':uid, 'token':token})
