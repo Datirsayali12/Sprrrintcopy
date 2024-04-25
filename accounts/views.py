@@ -115,7 +115,6 @@ class UserProfileView(APIView):
   authentication_classes = []  # Exclude authentication for this view
   permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]
-  permission_classes = [IsAuthenticated]
   def get(self, request, format=None):
     serializer = UserProfileSerializer(request.user)
     return JsonResponse(serializer.data, status=status.HTTP_200_OK)
