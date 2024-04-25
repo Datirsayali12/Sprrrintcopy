@@ -112,16 +112,11 @@ class UserLoginView(APIView):
       return JsonResponse({'errors':{'non_field_errors':['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
 
 class UserProfileView(APIView):
-    authentication_classes = []  # Exclude authentication for this view
-    permission_classes = [AllowAny]
-    renderer_classes = [UserRenderer]
-
-    def get(self, request, format=None):
-        if request.user.is_authenticated:
-            serializer = UserProfileSerializer(request.user)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+  renderer_classes = [UserRenderer]
+  permission_classes = [IsAuthenticated]
+  def get(self, request, format=None):
+    serializer = UserProfileSerializer(request.user)
+    return JsonResponse(serializer.data, status=status.HTTP_200_OK)
 
 
 class UserChangePasswordView(APIView):
