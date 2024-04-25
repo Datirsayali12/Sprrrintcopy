@@ -120,8 +120,6 @@ class UserProfileView(APIView):
 
 
 class UserChangePasswordView(APIView):
-  authentication_classes = []  # Exclude authentication for this view
-  permission_classes = [AllowAny]
   renderer_classes = [UserRenderer]  # Assuming UserRenderer is defined elsewhere
   permission_classes = [IsAuthenticated]
 
