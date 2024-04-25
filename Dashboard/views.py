@@ -249,7 +249,7 @@ def upload_pack(request):
         pack.total_assets = total_assets
         pack.save()
 
-        return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id}, status=status.HTTP_201_CREATED)
+        return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id,'total_assets':total_assets}, status=status.HTTP_201_CREATED)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -292,15 +292,18 @@ def get_selected_existing(request):
 
 @permission_classes([IsAuthenticated])
 @api_view(['PUT'])
-def update_asset(request, asset_id):
+def update_asset(request):
     if request.method == 'PUT':
         try:
             data = request.data.get('data')
-            print(data)
-            #json_data = data[0]
-            #print(type(json_data))
             data_dict = json.loads(data)
-            print(type(data_dict))
+            print(data_dict)
+            asset_id = data_dict.get('asset_id')
+
+            if not asset_id:
+                return JsonResponse({'error': 'Pack ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
 
@@ -558,24 +561,37 @@ def get_assets_by_title_and_tag(request):
 
 @permission_classes([IsAuthenticated])
 @api_view(['DELETE'])
-def delete_product(request, product_id):
+def delete_product(request):
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     try:
-        product = Pack.objects.get(id=product_id)
-        product.is_active= False
+        pack_id = request.data.get('pack_id')
+
+
+        if not pack_id:
+            return JsonResponse({'error': 'Product ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = Pack.objects.get(id=pack_id)
+        product.is_active = False
         product.save()
-        return JsonResponse({"message": "Product soft deleted successfully"},status=status.HTTP_204_NO_CONTENT)
+        return JsonResponse({"message": "Product soft deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+
     except Pack.DoesNotExist:
         return JsonResponse({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
 
+
 @permission_classes([IsAuthenticated])
 @api_view(['DELETE'])
-def delete_asset(request, asset_id):
+def delete_asset(request):
     try:
+        asset_id=request.data.get("asset_id")
         asset = Asset.objects.get(id=asset_id)
         asset.is_active= False
         asset.save()
@@ -589,15 +605,20 @@ def delete_asset(request, asset_id):
 
 @permission_classes([IsAuthenticated])
 @api_view(['PUT'])
-def update_pack(request, pack_id):
+def update_pack(request):
     if request.method != 'PUT':
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     try:
-        pack = Pack.objects.get(pk=pack_id)
         data = request.data.get('data')
         data_dict = json.loads(data)
         print(data_dict)
+        pack_id = data_dict.get('pack_id')
+
+        if not pack_id:
+            return JsonResponse({'error': 'Pack ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pack = Pack.objects.get(pk=pack_id)
 
         pack.name= data_dict.get('name', pack.name)
         pack.base_price = data_dict.get('credits', pack.base_price)
