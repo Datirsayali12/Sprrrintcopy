@@ -96,20 +96,24 @@ class EmailVerificationView(APIView):
 
 
 class UserLoginView(APIView):
-  authentication_classes = []  # Exclude authentication for this view
-  permission_classes = [AllowAny]
-  renderer_classes = [UserRenderer]
-  def post(self, request, format=None):
-    serializer = UserLoginSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    email = serializer.data.get('email')
-    password = serializer.data.get('password')
-    user = authenticate(email=email, password=password)
-    if user is not None:
-      token = get_tokens_for_user(user)
-      return JsonResponse({'token':token, 'msg':'Login Success'}, status=status.HTTP_200_OK)
-    else:
-      return JsonResponse({'errors':{'non_field_errors':['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, format=None):
+        serializer = UserLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.data.get('email')
+        password = serializer.data.get('password')
+        user = authenticate(email=email, password=password)
+
+        if user is not None:
+            if user.email_verified:
+                token = get_tokens_for_user(user)
+                return JsonResponse({'token': token, 'msg': 'Login Success'}, status=status.HTTP_200_OK)
+            else:
+                return JsonResponse({'error': 'Email not verified. Please verify your email to log in.'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return JsonResponse({'errors': {'non_field_errors': ['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
 
 class UserProfileView(APIView):
   renderer_classes = [UserRenderer]
