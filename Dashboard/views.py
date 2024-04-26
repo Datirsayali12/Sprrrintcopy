@@ -14,8 +14,9 @@ import json
 from django.core.exceptions import ValidationError
 from zipfile import ZipFile
 from django.db import IntegrityError
+from rest_framework.permissions import AllowAny
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def upload_asset(request):
     if request.method == 'POST':
@@ -85,7 +86,8 @@ def upload_asset(request):
             user = User.objects.first() 
             asset = Asset.objects.create(
                 name=data_dict.get('name'),
-                creator=request.user,
+                #creator=request.user,
+                creator=user,
                 base_price=data_dict.get('credits'),
                 category=category,
                 is_free=is_free
@@ -120,7 +122,7 @@ def upload_asset(request):
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def create_from_existing(request):
     if request.method == 'POST':
@@ -141,11 +143,13 @@ def create_from_existing(request):
 
         # Set default value for is_free if not provided
         is_free = data.get('is_free', False)
+        user=User.objects.first()
 
         try:
             new_asset = Asset.objects.create(
                 name=data.get('name', ''),
-                creator=request.user,
+                # creator=request.user,
+                creator=user,
                 base_price=data.get('credits', 0),
                 category=existing_asset.category,
                 is_free=is_free,
@@ -171,7 +175,7 @@ def create_from_existing(request):
     #save()
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def upload_pack(request):
     if request.method != 'POST':
@@ -219,10 +223,11 @@ def upload_pack(request):
         name = data_dict.get('name')
         if Pack.objects.filter(name=name).exists():
             return JsonResponse({'error': 'A pack with this title already exists'}, status=status.HTTP_400_BAD_REQUEST)
-
+        user=User.objects.first()
         pack = Pack(
             name=data_dict.get('name'),
-            creator=request.user,
+            #creator=request.user,
+            creator=user,
             category=category,
             base_price=data_dict.get('credits'),
             is_free=is_free
@@ -260,7 +265,7 @@ def generate_unique_filename(filename):
     _, ext = os.path.splitext(filename)
     return f"{uuid.uuid4()}{ext}"
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['POST'])
 def get_selected_existing(request):
 
@@ -268,7 +273,8 @@ def get_selected_existing(request):
     data=request.data
     asset_ids1=data['asset_ids']
     print(asset_ids1)
-    assets = Asset.objects.filter(id__in=asset_ids1,is_active=True,creator=request.user.id)
+    # assets = Asset.objects.filter(id__in=asset_ids1,is_active=True,creator=request.user.id)
+    assets = Asset.objects.filter(id__in=asset_ids1, is_active=True)
     print(assets)
 
     all_assets = []
@@ -290,7 +296,7 @@ def get_selected_existing(request):
     return JsonResponse({"all_assets": all_assets},status=status.HTTP_200_OK)
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['PUT'])
 def update_asset(request):
     if request.method == 'PUT':
@@ -420,12 +426,13 @@ def update_asset(request):
     
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_all_packs(request):
     u=User.objects.first()
     try:
-        packs = Pack.objects.filter(is_active=True,creator=request.user)
+        # packs = Pack.objects.filter(is_active=True,creator=request.user)
+        packs = Pack.objects.filter(is_active=True)
         packs_data = []
 
         for pack in packs:
@@ -471,12 +478,13 @@ def get_all_packs(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_packs_by_title_or_tag(request):
     try:
         query = request.GET.get('query', '')
-        packs = Pack.objects.filter(is_active=True,creator=request.user)
+        # packs = Pack.objects.filter(is_active=True,creator=request.user)
+        packs = Pack.objects.filter(is_active=True)
 
         if query:
             packs = packs.filter(Q(name__icontains=query) | Q(tags__name__icontains=query))
@@ -526,7 +534,7 @@ def get_packs_by_title_or_tag(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_assets_by_title_and_tag(request):
     query = request.GET.get('query', '')
@@ -536,7 +544,8 @@ def get_assets_by_title_and_tag(request):
         Q(name__icontains=query) | Q(tags__name__icontains=query)
     ).distinct()
     u=User.objects.first()
-    assets=all_assets.filter(is_active=True,creator=request.user.id)
+    #assets=all_assets.filter(is_active=True,creator=request.user.id)
+    assets = all_assets.filter(is_active=True)
 
     assets_data = []
     for asset in assets:
@@ -559,7 +568,7 @@ def get_assets_by_title_and_tag(request):
     return JsonResponse({'assets': assets_data},status=status.HTTP_200_OK)
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['DELETE'])
 def delete_product(request):
     if request.method != 'DELETE':
@@ -587,7 +596,7 @@ def delete_product(request):
 
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['DELETE'])
 def delete_asset(request):
     try:
@@ -603,7 +612,7 @@ def delete_asset(request):
 
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['PUT'])
 def update_pack(request):
     if request.method != 'PUT':
@@ -708,7 +717,7 @@ def update_pack(request):
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_tag_and_category(request):
     categories=Category.objects.all()
@@ -728,11 +737,12 @@ def get_tag_and_category(request):
 
 
 
-@permission_classes([IsAuthenticated])
+#@permission_classes([IsAuthenticated])
 @api_view(['GET'])
 def get_all_assets(request):
     if request.method == 'GET':
-        assets=Asset.objects.filter(is_active=True,creator=request.user.id)
+        # assets=Asset.objects.filter(is_active=True,creator=request.user.id)
+        assets = Asset.objects.filter(is_active=True)
         u=User.objects.first()
         all_assets=[]
         for asset in assets:
