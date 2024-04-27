@@ -110,7 +110,7 @@ def upload_asset(request):
                 asset.tags.add(tag)
 
            
-            return JsonResponse({'message': 'Asset uploaded successfully.', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=status.HTTP_201_CREATED,safe=False)
+            return JsonResponse({'message': 'Asset uploaded successfully.','status':'true', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=status.HTTP_201_CREATED,safe=False)
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -161,7 +161,7 @@ def create_from_existing(request):
             for asset_file in existing_asset.asset_file.all():
                 new_asset.asset_file.add(asset_file)
 
-            return JsonResponse({'created_asset_id': new_asset.id}, status=status.HTTP_201_CREATED)
+            return JsonResponse({'created_asset_id': new_asset.id,'status':'true'}, status=status.HTTP_201_CREATED)
         except IntegrityError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     else:
@@ -222,7 +222,7 @@ def upload_pack(request):
 
         name = data_dict.get('name')
         if Pack.objects.filter(name=name).exists():
-            return JsonResponse({'error': 'A pack with this title already exists'}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({'error': 'A pack with this title already exists','status':'false'}, status=status.HTTP_400_BAD_REQUEST)
         user=User.objects.first()
         pack = Pack(
             name=data_dict.get('name'),
@@ -254,7 +254,7 @@ def upload_pack(request):
         pack.total_assets = total_assets
         pack.save()
 
-        return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id,'total_assets':total_assets}, status=status.HTTP_201_CREATED)
+        return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id,'total_assets':total_assets,'status':'true'}, status=status.HTTP_201_CREATED)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -409,10 +409,10 @@ def update_asset(request):
                 except AssetFile.DoesNotExist:
                     pass
 
-            return JsonResponse({'message': 'Asset updated successfully.', 'asset_id': asset.id}, status=status.HTTP_200_OK)
+            return JsonResponse({'message': 'Asset updated successfully.', 'asset_id': asset.id,'status':'true'}, status=status.HTTP_200_OK)
 
         except Asset.DoesNotExist:
-            return JsonResponse({'error': 'Asset not found'}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({'error': 'Asset not found','status':'false'}, status=status.HTTP_404_NOT_FOUND)
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -421,7 +421,7 @@ def update_asset(request):
             return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     else:
-        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return JsonResponse({'error': 'Method not allowed','status':'false'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     
 
@@ -473,7 +473,7 @@ def get_all_packs(request):
 
             packs_data.append(pack_data)
 
-        return JsonResponse({'packs': packs_data}, status=status.HTTP_200_OK)
+        return JsonResponse({'packs': packs_data,'status':'true'}, status=status.HTTP_200_OK)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -529,7 +529,7 @@ def get_packs_by_title_or_tag(request):
 
             packs_data.append(pack_data)
 
-        return JsonResponse({'packs': packs_data}, status=status.HTTP_200_OK)
+        return JsonResponse({'packs': packs_data,'status':'true'}, status=status.HTTP_200_OK)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -565,7 +565,7 @@ def get_assets_by_title_and_tag(request):
         }
         assets_data.append(asset_data)
 
-    return JsonResponse({'assets': assets_data},status=status.HTTP_200_OK)
+    return JsonResponse({'assets': assets_data,'status':'true'},status=status.HTTP_200_OK)
 
 
 #@permission_classes([IsAuthenticated])
@@ -584,10 +584,10 @@ def delete_product(request):
         product = Pack.objects.get(id=pack_id)
         product.is_active = False
         product.save()
-        return JsonResponse({"message": "Product soft deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        return JsonResponse({"message": "Product soft deleted successfully",'status':'true'}, status=status.HTTP_204_NO_CONTENT)
 
     except Pack.DoesNotExist:
-        return JsonResponse({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        return JsonResponse({"error": "Product not found",'status':'false'}, status=status.HTTP_404_NOT_FOUND)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -604,9 +604,9 @@ def delete_asset(request):
         asset = Asset.objects.get(id=asset_id)
         asset.is_active= False
         asset.save()
-        return JsonResponse({"message": "Asset soft deleted successfully"},status=status.HTTP_204_NO_CONTENT)
+        return JsonResponse({"message": "Asset soft deleted successfully",'status':'true'},status=status.HTTP_204_NO_CONTENT)
     except Pack.DoesNotExist:
-        return JsonResponse({"error": "Asset not found"}, status=status.HTTP_404_NOT_FOUND)
+        return JsonResponse({"error": "Asset not found",'status':'false'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -705,10 +705,10 @@ def update_pack(request):
         pack.total_assets = total_assets
         pack.save()
 
-        return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id},status=status.HTTP_200_OK)
+        return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id,'status':'true'},status=status.HTTP_200_OK)
 
     except Pack.DoesNotExist:
-        return JsonResponse({'error': 'Pack not found'}, status=status.HTTP_404_NOT_FOUND)
+        return JsonResponse({'error': 'Pack not found','status':'false'}, status=status.HTTP_404_NOT_FOUND)
 
     except ValidationError as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -758,7 +758,7 @@ def get_all_assets(request):
                 
             }
             all_assets.append(data)
-        return JsonResponse({'all_assets':all_assets}, status=status.HTTP_200_OK)
+        return JsonResponse({'all_assets':all_assets,'status':'true'}, status=status.HTTP_200_OK)
 
 
 
