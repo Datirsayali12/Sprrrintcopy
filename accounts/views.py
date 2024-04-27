@@ -47,7 +47,7 @@ class UserRegistrationView(APIView):
             email = EmailMessage(subject, message, to=[user.email])
             email.send()
 
-            return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.'}, status=status.HTTP_201_CREATED)
+            return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.','status':"true"}, status=status.HTTP_201_CREATED)
         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -72,7 +72,7 @@ class CreatorRegistrationView(APIView):
             email = EmailMessage(subject, message, to=[user.email])
             email.send()
 
-            return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.'}, status=status.HTTP_201_CREATED)
+            return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.','status':"true"}, status=status.HTTP_201_CREATED)
         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class EmailVerificationView(APIView):
@@ -89,8 +89,8 @@ class EmailVerificationView(APIView):
             user.email_verified = True
             user.save()
             token = get_tokens_for_user(user)
-            return JsonResponse({'token':token, 'message': 'Email verified successfully.'}, status=status.HTTP_200_OK)
-        return JsonResponse({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({'token':token, 'message': 'Email verified successfully.','status':"true"}, status=status.HTTP_200_OK)
+        return JsonResponse({'error': 'Invalid verification link.','status':'false'}, status=status.HTTP_400_BAD_REQUEST)
     
 
 
@@ -109,9 +109,9 @@ class UserLoginView(APIView):
         if user is not None:
             if user.email_verified:
                 token = get_tokens_for_user(user)
-                return JsonResponse({'token': token, 'msg': 'Login Success'}, status=status.HTTP_200_OK)
+                return JsonResponse({'token': token, 'msg': 'Login Success','status':"true"}, status=status.HTTP_200_OK)
             else:
-                return JsonResponse({'error': 'Email not verified. Please verify your email to log in.'}, status=status.HTTP_403_FORBIDDEN)
+                return JsonResponse({'error': 'Email not verified. Please verify your email to log in.','status':'false'}, status=status.HTTP_403_FORBIDDEN)
         else:
             return JsonResponse({'errors': {'non_field_errors': ['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
 
@@ -120,7 +120,7 @@ class UserProfileView(APIView):
   permission_classes = [IsAuthenticated]
   def get(self, request, format=None):
     serializer = UserProfileSerializer(request.user)
-    return JsonResponse(serializer.data, status=status.HTTP_200_OK)
+    return JsonResponse({'data': serializer.data, 'status': 'true'}, status=status.HTTP_200_OK)
 
 
 class UserChangePasswordView(APIView):
@@ -130,7 +130,7 @@ class UserChangePasswordView(APIView):
   def post(self, request, format=None):
     serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
     serializer.is_valid(raise_exception=True)
-    return JsonResponse({'msg': 'Password Changed Successfully'}, status=status.HTTP_200_OK)
+    return JsonResponse({'msg': 'Password Changed Successfully','status': 'true'}, status=status.HTTP_200_OK)
 
 
 class SendPasswordResetEmailView(APIView):
@@ -140,7 +140,7 @@ class SendPasswordResetEmailView(APIView):
   def post(self, request, format=None):
     serializer = SendPasswordResetEmailSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    return JsonResponse({'msg':'Password Reset link send. Please check your Email'}, status=status.HTTP_200_OK)
+    return JsonResponse({'msg':'Password Reset link send. Please check your Email','status': 'true'}, status=status.HTTP_200_OK)
 
 class UserPasswordResetView(APIView):
   authentication_classes = []  # Exclude authentication for this view
@@ -149,7 +149,7 @@ class UserPasswordResetView(APIView):
   def post(self, request, uid, token, format=None):
     serializer = UserPasswordResetSerializer(data=request.data, context={'uid':uid, 'token':token})
     serializer.is_valid(raise_exception=True)
-    return JsonResponse({'msg':'Password Reset Successfully'}, status=status.HTTP_200_OK)
+    return JsonResponse({'msg':'Password Reset Successfully','status': 'true'}, status=status.HTTP_200_OK)
 
 
 
