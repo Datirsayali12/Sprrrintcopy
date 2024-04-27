@@ -109,7 +109,7 @@ class UserLoginView(APIView):
         if user is not None:
             if user.email_verified:
                 token = get_tokens_for_user(user)
-                return JsonResponse({'token': token, 'msg': 'Login Success','status':"true"}, status=status.HTTP_200_OK)
+                return JsonResponse({'token': token, 'message': 'Login Success','status':"true"}, status=status.HTTP_200_OK)
             else:
                 return JsonResponse({'error': 'Email not verified. Please verify your email to log in.','status':'false'}, status=status.HTTP_403_FORBIDDEN)
         else:
@@ -130,7 +130,7 @@ class UserChangePasswordView(APIView):
   def post(self, request, format=None):
     serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
     serializer.is_valid(raise_exception=True)
-    return JsonResponse({'msg': 'Password Changed Successfully','status': 'true'}, status=status.HTTP_200_OK)
+    return JsonResponse({'message': 'Password Changed Successfully','status': 'true'}, status=status.HTTP_200_OK)
 
 
 class SendPasswordResetEmailView(APIView):
@@ -140,7 +140,7 @@ class SendPasswordResetEmailView(APIView):
   def post(self, request, format=None):
     serializer = SendPasswordResetEmailSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    return JsonResponse({'msg':'Password Reset link send. Please check your Email','status': 'true'}, status=status.HTTP_200_OK)
+    return JsonResponse({'message':'Password Reset link send. Please check your Email','status': 'true'}, status=status.HTTP_200_OK)
 
 class UserPasswordResetView(APIView):
   authentication_classes = []  # Exclude authentication for this view
@@ -149,7 +149,7 @@ class UserPasswordResetView(APIView):
   def post(self, request, uid, token, format=None):
     serializer = UserPasswordResetSerializer(data=request.data, context={'uid':uid, 'token':token})
     serializer.is_valid(raise_exception=True)
-    return JsonResponse({'msg':'Password Reset Successfully','status': 'true'}, status=status.HTTP_200_OK)
+    return JsonResponse({'message':'Password Reset Successfully','status': 'true'}, status=status.HTTP_200_OK)
 
 
 
