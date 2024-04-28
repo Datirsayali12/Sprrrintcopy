@@ -210,23 +210,22 @@ def upload_pack(request):
             return JsonResponse({'error': 'Invalid category ID'}, status=status.HTTP_400_BAD_REQUEST)
 
         #add preview images for font category
-        category_name=Category.objects.get(id=category_id)
-        if category_name.name.lower()=='fonts':
-            preview_images_objects = []
-            preview_images = request.FILES.getlist('preview_images')
 
-            for uploaded_file in preview_images:
-                file_name = generate_unique_filename(uploaded_file.name)
-                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-                with open(file_path, 'wb+') as destination:
-                    for chunk in uploaded_file.chunks():
-                        destination.write(chunk)
+        preview_images_objects = []
+        preview_images = request.FILES.getlist('preview_images')
 
-                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-                image, _ = Image.objects.get_or_create(url=file_url)
-                image.is_preview = True
-                image.save()
-                preview_images_objects.append(image)
+        for uploaded_file in preview_images:
+            file_name = generate_unique_filename(uploaded_file.name)
+            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+
+            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+            image, _ = Image.objects.get_or_create(url=file_url)
+            image.is_preview = True
+            image.save()
+            preview_images_objects.append(image)
 
 
 
@@ -301,9 +300,9 @@ def upload_pack(request):
         pack.total_assets = total_assets
         pack.save()
 
-        #fonts number of styles
-        pack.total_assets=no_of_styles
-        pack.save()
+        # #fonts number of styles
+        # pack.total_assets=no_of_styles
+        # pack.save()
 
         return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id,'total_assets':total_assets,'status':'true'}, status=status.HTTP_201_CREATED)
 
