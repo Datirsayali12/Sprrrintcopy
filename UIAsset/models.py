@@ -72,12 +72,13 @@ class AssetType(models.Model):
 
 class Image(models.Model):
     url=models.URLField(unique=True,help_text="for product asset Image URLs")
-    is_hero_img=models.BooleanField(default=False,help_text="indicate which image is hero_image from all images")
+    is_hero=models.BooleanField(default=False,help_text="indicate which image is hero_image from all images")
     # asset_type = models.ForeignKey(AssetType, on_delete=models.CASCADE,
                                    #help_text='This will store file like - jpg, mp4')
     updated_at = models.DateField(auto_now=True)
     created_at = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    is_preview=models.BooleanField(default=False,help_text='indicate image is preview image')
 
 
     

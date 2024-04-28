@@ -28,7 +28,7 @@ class AssetFileAdmin(admin.ModelAdmin):
 
 @admin.register(Image)
 class ImageAdmin(admin.ModelAdmin):
-    list_display = ('id','url', 'is_hero_img')
+    list_display = ('id','url', 'is_hero')
 
 
 # @admin.register(ProductType)

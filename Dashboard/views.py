@@ -28,15 +28,21 @@ def upload_asset(request):
             print(asset_name)
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
-            print(files)
 
+            #check required fields
             required_fields = ['name', 'category_id', 'credits']
             for field in required_fields:
                 if field not in data_dict or not data_dict[field]:
                     return JsonResponse({'error': f'{field} is required'}, status=400)
 
+            try:
+                category_id = data_dict.get('category_id')
+                category = Category.objects.get(pk=category_id)
+            except (ValueError, Category.DoesNotExist):
+                return JsonResponse({'error': 'Invalid category ID'}, status=400)
+
             
-            # Handle thumbnail image uploads
+            # hero images uploads
             asset_hero_images = []
             for uploaded_image in images:
                 file_name = generate_unique_filename(uploaded_image.name)
@@ -46,9 +52,12 @@ def upload_asset(request):
                         destination.write(chunk)
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
                 asset_image = Image.objects.create(url=file_url)
+                asset_image.is_hero=True
+                asset_image.save()
                 asset_hero_images.append(asset_image)
 
-            #file upload
+
+            #asset files  upload
             file_objects = []
             for uploaded_file in files:
                 file_name = generate_unique_filename(uploaded_file.name)
@@ -57,7 +66,7 @@ def upload_asset(request):
                     for chunk in uploaded_file.chunks():
                         destination.write(chunk)
 
-
+                #check file zip or not
                 if not file_name.endswith(".zip"):
                     file_name = os.path.splitext(file_name)[0]
 
@@ -72,14 +81,7 @@ def upload_asset(request):
                 asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
                 file_objects.append(asset_file)
 
-            try:
-                category_id = data_dict.get('category_id')
-                category = Category.objects.get(pk=category_id)
-            except (ValueError, Category.DoesNotExist):
-                return JsonResponse({'error': 'Invalid category ID'}, status=400)
-
-          
-
+            #asset creation
             is_free= data_dict.get('is_free', False)
             print(is_free)
                     
@@ -99,18 +101,16 @@ def upload_asset(request):
             asset.asset_file.add(*file_objects)
             asset.save()
 
-    
+            #add tags
             tag_names = data_dict.get('tags', [])
             if not tag_names:
                 return JsonResponse({'error': 'At least one tag is required'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            
             for tag_name in tag_names:
                 tag, _ = Tag.objects.get_or_create(name=tag_name)
                 asset.tags.add(tag)
 
            
-            return JsonResponse({'message': 'Asset uploaded successfully.','status':'true', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=status.HTTP_201_CREATED,safe=False)
+            return JsonResponse({'message': 'Asset uploaded successfully.','status':'true', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -144,7 +144,7 @@ def create_from_existing(request):
         # Set default value for is_free if not provided
         is_free = data.get('is_free', False)
         user=User.objects.first()
-
+        #create new asset
         try:
             new_asset = Asset.objects.create(
                 name=data.get('name', ''),
@@ -155,9 +155,11 @@ def create_from_existing(request):
                 is_free=is_free,
             )
 
+            #add existing images in new_asset
             for image in existing_asset.image.all():
                 new_asset.image.add(image)
 
+            # add existing asset_files in new_asset
             for asset_file in existing_asset.asset_file.all():
                 new_asset.asset_file.add(asset_file)
 
@@ -184,6 +186,9 @@ def upload_pack(request):
     try:
         data = request.data.get('data')
         data_dict = json.loads(data)
+        slider_images = request.FILES.getlist('slider_images')
+        print(slider_images)
+        no_of_styles=data_dict.get('no_of_styles')
 
         required_fields = ['name', 'category_id', 'credits', 'tags', 'is_free']
         for field in required_fields:
@@ -204,12 +209,32 @@ def upload_pack(request):
         except Category.DoesNotExist:
             return JsonResponse({'error': 'Invalid category ID'}, status=status.HTTP_400_BAD_REQUEST)
 
-        is_free = data_dict['is_free']
+        #add preview images for font category
+        category_name=Category.objects.get(id=category_id)
+        if category_name.name.lower()=='fonts':
+            preview_images_objects = []
+            preview_images = request.FILES.getlist('preview_images')
 
-        pack_image_objects = []
-        uploaded_files = request.FILES.getlist('hero_images')
+            for uploaded_file in preview_images:
+                file_name = generate_unique_filename(uploaded_file.name)
+                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
 
-        for uploaded_file in uploaded_files:
+                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                image, _ = Image.objects.get_or_create(url=file_url)
+                image.is_preview = True
+                image.save()
+                preview_images_objects.append(image)
+
+
+
+        #upload pack hero images
+        pack_hero_images_objects = []
+        hero_images = request.FILES.getlist('hero_images')
+
+        for uploaded_file in hero_images:
             file_name = generate_unique_filename(uploaded_file.name)
             file_path = os.path.join(settings.MEDIA_ROOT, file_name)
             with open(file_path, 'wb+') as destination:
@@ -217,9 +242,27 @@ def upload_pack(request):
                     destination.write(chunk)
 
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file, _ = Image.objects.get_or_create(url=file_url)
-            pack_image_objects.append(asset_file)
+            image, _ = Image.objects.get_or_create(url=file_url)
+            image.is_hero=True
+            image.save()
+            pack_hero_images_objects.append(image)
 
+        #upload pack slider images
+        pack_slider_images = []
+        for slider_image in slider_images:
+            file_name = generate_unique_filename(slider_image.name)
+            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in slider_image.chunks():
+                    destination.write(chunk)
+            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+            asset_image = Image.objects.create(url=file_url)
+            asset_image.is_hero = False
+            asset_image.save()
+            pack_slider_images.append(asset_image)
+
+        #pack creation
+        is_free = data_dict['is_free']
         name = data_dict.get('name')
         if Pack.objects.filter(name=name).exists():
             return JsonResponse({'error': 'A pack with this title already exists','status':'false'}, status=status.HTTP_400_BAD_REQUEST)
@@ -234,6 +277,7 @@ def upload_pack(request):
         )
         pack.save()
 
+        #add assets in pack
         asset_ids = data_dict.get('asset_ids', [])
         for asset_id in asset_ids:
             try:
@@ -241,17 +285,24 @@ def upload_pack(request):
                 pack.assets.add(asset)
             except Asset.DoesNotExist:
                 pass
-
+        #add tags
         tag_names = data_dict.get('tags', [])
         for tag_name in tag_names:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
             pack.tags.add(tag)
 
-        pack.image.add(*pack_image_objects)
+        pack.image.add(*pack_hero_images_objects)
         pack.save()
-
+        pack.image.add(*pack_slider_images)
+        pack.save()
+        pack.image.add(*preview_images_objects)
+        pack.save()
         total_assets = pack.assets.count()
         pack.total_assets = total_assets
+        pack.save()
+
+        #fonts number of styles
+        pack.total_assets=no_of_styles
         pack.save()
 
         return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id,'total_assets':total_assets,'status':'true'}, status=status.HTTP_201_CREATED)
@@ -266,9 +317,8 @@ def generate_unique_filename(filename):
     return f"{uuid.uuid4()}{ext}"
 
 #@permission_classes([IsAuthenticated])
-@api_view(['POST'])
+@api_view(['POST'])   # get selected existing asset details
 def get_selected_existing(request):
-
     user = User.objects.first()  
     data=request.data
     asset_ids1=data['asset_ids']
@@ -286,7 +336,7 @@ def get_selected_existing(request):
             "asset_id": asset.id, 
             "is_active": asset.is_active,
             "is_free": asset.is_free,
-            "image": [{"image_id":image.id,"image_url":image.url } for image in asset.image.all()],
+            "hero_images": [{"image_id":image.id,"image_url":image.url } for image in asset.image.all()],
             "tags": [{"tag_id":tag.id,"tag_name":tag.name } for tag in asset.tags.all()],
             "asset_file":[{"file_id":file.id,"file_url":file.url } for file in asset.asset_file.all()],
         }
@@ -343,8 +393,7 @@ def update_asset(request):
                 asset.tags.remove(tag_id)
             asset.save()
 
-
-
+            #add hero images
             asset_hero_images = []
             for uploaded_image in images:
                 file_name = generate_unique_filename(uploaded_image.name)
@@ -356,6 +405,7 @@ def update_asset(request):
                 asset_image = Image.objects.create(url=file_url)
                 asset_hero_images.append(asset_image)
 
+            #add asset_files
             file_objects = []
             for uploaded_file in files:
                 file_name = generate_unique_filename(uploaded_file.name)
@@ -366,6 +416,7 @@ def update_asset(request):
 
                 if not file_name.endswith(".zip"):
                     file_name = os.path.splitext(file_name)[0]
+
 
                 zip_file_path = os.path.join(settings.MEDIA_ROOT, f"{file_name}.zip")
                 with ZipFile(zip_file_path, 'w') as zipf:
@@ -383,7 +434,7 @@ def update_asset(request):
             asset.asset_file.add(*file_objects)
             asset.save()
 
-            # Deactivate and remove images
+            #delete thumbnail images
             deleted_image_ids = data_dict.get('deleted_thumbnail_images_ids ', [])
             print(deleted_image_ids)
             for image_id in deleted_image_ids:
@@ -396,7 +447,7 @@ def update_asset(request):
                 except Image.DoesNotExist:
                     pass
 
-            # Deactivate and remove asset files
+            #delete asset files
             deleted_asset_files_ids = data_dict.get('deleted_asset_files_ids', [])
             print(deleted_asset_files_ids)
             for file_id in deleted_asset_files_ids:
@@ -443,14 +494,15 @@ def get_all_packs(request):
                 'title': pack.name,
                 #'creator': pack.u.id,
                 'category': pack.category.name,
-                'base_price': pack.base_price,
-                'discount_price': pack.discount_price,
+                'credits': pack.base_price,
                 'is_free': pack.is_free,
                 'is_active': pack.is_active,
                 'created_at': pack.created_at,
                 'updated_at': pack.updated_at,
                 'tags': [{"name":tag.name,"tag_id":tag.id} for tag in pack.tags.all()],
-                'image_urls': [{"image_id":image.id,"image_url":image.url} for image in pack.image.all()],
+                'hero_images': [{"image_id":image.id,"image_url":image.url} for image in pack.image.filter(is_hero=True)],
+                'slider_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_hero=False)],
+                'preview_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_preview=True)],
                 'assets': []
             }
 
@@ -459,8 +511,7 @@ def get_all_packs(request):
                     'id': asset.id,
                     'name': asset.name,
                     'category': asset.category.name,
-                    'base_price': asset.base_price,
-                    'discount_price': asset.discount_price,
+                    'credits': asset.base_price,
                     'is_free': asset.is_free,
                     'is_active': asset.is_active,
                     'created_at': asset.created_at,
@@ -477,6 +528,7 @@ def get_all_packs(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 #@permission_classes([IsAuthenticated])
 @api_view(['GET'])
@@ -499,14 +551,15 @@ def get_packs_by_title_or_tag(request):
                 'id': pack.id,
                 'title': pack.name,
                 'category': pack.category.name,
-                'base_price': pack.base_price,
-                'discount_price': pack.discount_price,
+                'credits': pack.base_price,
                 'is_free': pack.is_free,
                 'is_active': pack.is_active,
                 'created_at': pack.created_at,
                 'updated_at': pack.updated_at,
                 'tags': [{"tag_id":tag.id,"tag_name":tag.name} for tag in pack.tags.all()],
-                'image_urls': [{"image_id":image.id,"image_url":image.url} for image in pack.image.all()],
+                'hero_images': [{"image_id":image.id,"image_url":image.url} for image in pack.image.filter(is_hero=True)],
+                'slider_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_hero=False)],
+                'preview_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_preview=True)],
                 'assets': []
             }
 
@@ -515,8 +568,7 @@ def get_packs_by_title_or_tag(request):
                     'id': asset.id,
                     'name': asset.name,
                     'category': asset.category.name,
-                    'base_price': asset.base_price,
-                    'discount_price': asset.discount_price,
+                    'credits': asset.base_price,
                     'is_free': asset.is_free,
                     'is_active': asset.is_active,
                     'created_at': asset.created_at,
@@ -553,8 +605,7 @@ def get_assets_by_title_and_tag(request):
             'id': asset.id,
             'name': asset.name,
             'category': asset.category.name,
-            'base_price': asset.base_price,
-            'discount_price': asset.discount_price,
+            'credits': asset.base_price,
             'is_free': asset.is_free,
             'is_active': asset.is_active,
             'created_at': asset.created_at,
@@ -638,6 +689,19 @@ def update_pack(request):
         is_free= data_dict.get('is_free', False)
         pack.is_free=is_free
 
+        #add assets
+        asset_ids = data_dict.get('asset_ids', [])
+        print(asset_ids)
+        for asset_id in asset_ids:
+            try:
+                asset = Asset.objects.get(id=int(asset_id))
+                pack.assets.add(asset)
+            except Asset.DoesNotExist:
+                pass
+        pack.save()
+
+
+        #delete assets
         deleted_asset_ids = data_dict.get('deleted_asset_ids', [])
         print(deleted_asset_ids)
         for asset_id in deleted_asset_ids:
@@ -646,19 +710,24 @@ def update_pack(request):
                 pack.assets.remove(asset_to_delete)
             except Asset.DoesNotExist:
                 pass
+        pack.save()
 
-
+        #add tags
         added_tags = data_dict.get('tags_added', [])
         deleted_tags = data_dict.get('tags_deleted', [])
         print(deleted_tags)
+
         for tag_name in added_tags:
             tag, _ = Tag.objects.get_or_create(name=tag_name)
             pack.tags.add(tag)
         pack.save()
+
+        #delete tags
         for tag_id in deleted_tags:
             pack.tags.remove(tag_id)
         pack.save()
 
+        #add hero images
         pack_image_objects = []
         uploaded_files = request.FILES.getlist('hero_images')
         print(uploaded_files)
@@ -677,8 +746,43 @@ def update_pack(request):
             pack.image.add(*pack_image_objects)
             pack.save()
 
+            #add preview images
+            preview_images = request.FILES.getlist('preview_images')
+            preview_images_objects=[]
+            for uploaded_file in preview_images:
+                file_name = generate_unique_filename(uploaded_file.name)
+                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+
+                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                image, _ = Image.objects.get_or_create(url=file_url)
+                image.is_preview = True
+                image.save()
+                preview_images_objects.append(image)
+            pack.image.add(*preview_images_objects)
+            pack.save()
 
 
+            #add pack slider images
+            pack_slider_images = []
+            slider_images = request.FILES.getlist('pack_slider_images')
+            for slider_image in slider_images:
+                file_name = generate_unique_filename(slider_image.name)
+                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+                with open(file_path, 'wb+') as destination:
+                    for chunk in slider_image.chunks():
+                        destination.write(chunk)
+                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+                asset_image = Image.objects.create(url=file_url)
+                asset_image.is_hero = False
+                asset_image.save()
+                pack_slider_images.append(asset_image)
+            pack.image.add(*pack_slider_images)
+            pack.save()
+
+            #delete images
             deleted_image_ids = data_dict.get('deleted_image_ids', [])
             for image_id in deleted_image_ids:
                 try:
@@ -690,7 +794,7 @@ def update_pack(request):
                 except Image.DoesNotExist:
                     pass
 
-
+            #delete assets
             deleted_asset_ids = data_dict.get('deleted_asset_ids', [])
             print(deleted_asset_ids)
             for asset_id in deleted_asset_ids:
@@ -704,6 +808,11 @@ def update_pack(request):
         total_assets = pack.assets.count()
         pack.total_assets = total_assets
         pack.save()
+
+        no_of_styles=data_dict.get('no_of_styles')
+        pack.no_of_items=no_of_styles
+        pack.save()
+
 
         return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id,'status':'true'},status=status.HTTP_200_OK)
 
@@ -725,8 +834,6 @@ def get_tag_and_category(request):
 
     tags=Tag.objects.all()
     tag_names=[{"tag_id":i.id, "tag_names":i.name} for i in tags]
-
-    
 
     data={
         'categories':category_names,
@@ -750,8 +857,7 @@ def get_all_assets(request):
                 "id":asset.id,
                 "name":asset.name,
                 "category":asset.category.name,
-                "base_price":asset.base_price,
-                "discount_price":asset.discount_price,
+                "credits":asset.base_price,
                 "hero_images":[{"image_id":image.id,"image_url":image.url } for image in asset.image.all()],
                 "asset_files":[{"file_id":file.id,"file_url":file.url} for file in asset.asset_file.all()],
                 "tags":[{"tag_id":tag.id,"tag_name":tag.name} for tag in asset.tags.all()]
