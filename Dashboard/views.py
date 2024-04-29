@@ -17,10 +17,12 @@ from django.db import IntegrityError
 from rest_framework.permissions import AllowAny
 
 #@permission_classes([IsAuthenticated])
+from django.db import IntegrityError
+
 @api_view(['POST'])
 def upload_asset(request):
     if request.method == 'POST':
-        data=request.data.get('data')
+        data = request.data.get('data')
         data_dict = json.loads(data)
 
         try:
@@ -29,7 +31,7 @@ def upload_asset(request):
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
 
-            #check required fields
+            # check required fields
             required_fields = ['name', 'category_id', 'credits']
             for field in required_fields:
                 if field not in data_dict or not data_dict[field]:
@@ -41,7 +43,6 @@ def upload_asset(request):
             except (ValueError, Category.DoesNotExist):
                 return JsonResponse({'error': 'Invalid category ID'}, status=400)
 
-            
             # hero images uploads
             asset_hero_images = []
             for uploaded_image in images:
@@ -52,12 +53,11 @@ def upload_asset(request):
                         destination.write(chunk)
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
                 asset_image = Image.objects.create(url=file_url)
-                asset_image.is_hero=True
+                asset_image.is_hero = True
                 asset_image.save()
                 asset_hero_images.append(asset_image)
 
-
-            #asset files  upload
+            # asset files upload
             file_objects = []
             for uploaded_file in files:
                 file_name = generate_unique_filename(uploaded_file.name)
@@ -66,7 +66,7 @@ def upload_asset(request):
                     for chunk in uploaded_file.chunks():
                         destination.write(chunk)
 
-                #check file zip or not
+                # check if file is zip or not
                 if not file_name.endswith(".zip"):
                     file_name = os.path.splitext(file_name)[0]
 
@@ -81,43 +81,41 @@ def upload_asset(request):
                 asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
                 file_objects.append(asset_file)
 
-            #asset creation
-            is_free= data_dict.get('is_free', False)
+            # asset creation
+            is_free = data_dict.get('is_free', False)
             print(is_free)
-                    
-            user = User.objects.first() 
+
+            user = User.objects.first()
             asset = Asset.objects.create(
                 name=data_dict.get('name'),
-                #creator=request.user,
                 creator=user,
                 base_price=data_dict.get('credits'),
                 category=category,
                 is_free=is_free
             )
             asset.save()
-        
-            asset.image.add(*asset_hero_images)
-            asset.save()
-            asset.asset_file.add(*file_objects)
-            asset.save()
 
-            #add tags
+            # add hero images and asset files to asset
+            asset.image.add(*asset_hero_images)
+            asset.asset_file.add(*file_objects)
+
+            # add tags
             tag_names = data_dict.get('tags', [])
-            if not tag_names:
-                return JsonResponse({'error': 'At least one tag is required'}, status=status.HTTP_400_BAD_REQUEST)
             for tag_name in tag_names:
                 tag, _ = Tag.objects.get_or_create(name=tag_name)
                 asset.tags.add(tag)
 
-           
-            return JsonResponse({'message': 'Asset uploaded successfully.','status':'true', 'asset_id': asset.id,"file_id":asset_file.id,"file_url":asset_file.url}, status=status.HTTP_201_CREATED)
+            return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
+
+        except IntegrityError as e:
+            return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     else:
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
