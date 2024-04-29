@@ -40,17 +40,29 @@ class CreatorRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ['email', 'name', 'password', 'confirm_password', 'profile_pic', 'terms_and_condition']
         extra_kwargs = {
-            'password': {'write_only': True}
+            'password': {'write_only': True},
+            'email': {'error_messages': {'required': 'Email is required.'}},
+            'name': {'error_messages': {'required': 'Name is required.'}},
+            'confirm_password': {'error_messages': {'required': 'Confirm Password is required.'}},
+            'profile_pic': {'error_messages': {'required': 'Profile Picture is required.'}},
+            'terms_and_condition': {'error_messages': {'required': 'Terms and Condition agreement is required.'}}
         }
 
-    def validate(self, attrs):
-        password = attrs.get('password')
-        confirm_password = attrs.get('confirm_password')
-        if password != confirm_password:
-            raise serializers.ValidationError("Password and Confirm Password don't match")
-        return attrs
+        def validate(self, attrs):
+            required_fields = ['email', 'name', 'password', 'confirm_password', 'profile_pic', 'terms_and_condition']
+            for field in required_fields:
+                if field not in attrs:
+                    error_message = {'messages': f"{field.capitalize()} required", 'status': "false"}
+                    raise serializers.ValidationError(error_message)
 
-    def create(self, validated_data):
+            password = attrs.get('password')
+            confirm_password = attrs.get('confirm_password')
+            if password != confirm_password:
+                raise serializers.ValidationError("Password and Confirm Password don't match")
+            return attrs
+
+
+def create(self, validated_data):
         profile_pic = validated_data.pop('profile_pic', None)
         terms_and_condition = validated_data.pop('terms_and_condition', False)
         validated_data.pop('confirm_password')
