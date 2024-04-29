@@ -77,11 +77,15 @@ class CreatorRegistrationView(APIView):
 
                 return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.', 'status': "true"}, status=status.HTTP_201_CREATED)
             else:
-                return JsonResponse({'message': 'Invalid data provided.', 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
-        except ValidationError:
-            return JsonResponse({'message': 'Validation error occurred.', 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
+                # Extracting serializer errors for more informative response
+                errors = serializer.errors
+                return JsonResponse({'message': errors, 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as e:
+            # Handling validation errors raised by the serializer
+            return JsonResponse({'message': str(e), 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return JsonResponse({'message': str(e), 'status': "false"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Handling other unexpected errors
+            return JsonResponse({'message': 'An error occurred.', 'status': "false"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class EmailVerificationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
