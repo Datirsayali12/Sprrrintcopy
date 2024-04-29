@@ -19,6 +19,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from .models import User
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny
+from rest_framework import serializers
 
 def get_tokens_for_user(user):
   refresh = RefreshToken.for_user(user)
@@ -115,19 +116,25 @@ class UserLoginView(APIView):
 
     def post(self, request, format=None):
         serializer = UserLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.data.get('email')
-        password = serializer.data.get('password')
-        user = authenticate(email=email, password=password)
+        try:
+            serializer.is_valid(raise_exception=True)
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            user = authenticate(email=email, password=password)
 
-        if user is not None:
-            if user.email_verified:
-                token = get_tokens_for_user(user)
-                return JsonResponse({'token': token, 'message': 'Login Success','status':"true"}, status=status.HTTP_200_OK)
+            if user is not None:
+                if user.email_verified:
+                    # Generate token or whatever your login logic requires
+                    token = get_tokens_for_user(user)
+                    return JsonResponse({'token': token, 'message': 'Login successful.', 'status': 'true'}, status=status.HTTP_200_OK)
+                else:
+                    return JsonResponse({'message': 'Email not verified. Please verify your email to log in.', 'status': 'false'}, status=status.HTTP_403_FORBIDDEN)
             else:
-                return JsonResponse({'message': 'Email not verified. Please verify your email to log in.','status':'false'}, status=status.HTTP_403_FORBIDDEN)
-        else:
-            return JsonResponse({'message': 'Email or Password is not Valid','status':'false'}, status=status.HTTP_404_NOT_FOUND)
+                return JsonResponse({'message': 'Invalid email or password.', 'status': 'false'}, status=status.HTTP_404_NOT_FOUND)
+        except serializers.ValidationError as e:
+            return JsonResponse({'message': e.detail.get('non_field_errors', 'An error occurred.'), 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return JsonResponse({'message': 'An error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserProfileView(APIView):
   renderer_classes = [UserRenderer]
