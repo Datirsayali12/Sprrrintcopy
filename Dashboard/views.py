@@ -97,13 +97,16 @@ def upload_asset(request):
 
             # add hero images and asset files to asset
             asset.image.add(*asset_hero_images)
+            asset.save()
             asset.asset_file.add(*file_objects)
+            asset.save()
 
             # add tags
             tag_names = data_dict.get('tags', [])
             for tag_name in tag_names:
                 tag, _ = Tag.objects.get_or_create(name=tag_name)
                 asset.tags.add(tag)
+            asset.save()
 
             return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
 
