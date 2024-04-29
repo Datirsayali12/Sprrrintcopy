@@ -19,6 +19,7 @@ from rest_framework.permissions import AllowAny
 #@permission_classes([IsAuthenticated])
 from django.db import IntegrityError
 
+
 @api_view(['POST'])
 def upload_asset(request):
     if request.method == 'POST':
@@ -117,7 +118,17 @@ def upload_asset(request):
             return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
 
         except IntegrityError as e:
-            return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+            # If the error is due to tag creation, assign existing tag to the asset
+            if "UNIQUE constraint failed: assets_tag.name" in str(e):
+                tag_names = data_dict.get('tags', [])
+                for tag_name in tag_names:
+                    tag = Tag.objects.filter(name=tag_name).first()
+                    if tag:
+                        asset.tags.add(tag)
+                asset.save()
+                return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
+            else:
+                return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
 
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -127,6 +138,7 @@ def upload_asset(request):
 
     else:
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
 
 
 #@permission_classes([IsAuthenticated])

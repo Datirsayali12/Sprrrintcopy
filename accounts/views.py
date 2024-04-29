@@ -1,7 +1,7 @@
 from rest_framework.exceptions import ValidationError, ErrorDetail
 from rest_framework.response import Response
 from .serializers import UserRegistrationSerializer,UserLoginSerializer,UserProfileSerializer,UserChangePasswordSerializer,SendPasswordResetEmailSerializer,UserPasswordResetSerializer,CreatorRegistrationSerializer
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.views import APIView
 from .serializers import UserRegistrationSerializer
 from django.contrib.auth import authenticate
@@ -20,6 +20,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from .models import User
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 def get_tokens_for_user(user):
   refresh = RefreshToken.for_user(user)
@@ -55,17 +56,13 @@ class UserRegistrationView(APIView):
 
 
 
-
-
-
 class CreatorRegistrationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
     permission_classes = [AllowAny]
 
     def post(self, request, format=None):
         serializer = CreatorRegistrationSerializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
+        if serializer.is_valid():
             user = serializer.save()
 
             token = default_token_generator.make_token(user)
@@ -80,28 +77,22 @@ class CreatorRegistrationView(APIView):
             email = EmailMessage(subject, message, to=[user.email])
             email.send()
 
-            return JsonResponse(
+            return Response(
                 {'message': 'User registered successfully. Please check your email for verification instructions.',
                  'status': "true"}, status=status.HTTP_201_CREATED)
-        except DRFValidationError as e:
-            error_messages = {}
-            for field, errors in e.detail.items():
-                field_error_message = ', '.join([str(error) for error in errors if isinstance(error, ErrorDetail)])
-                if field_error_message:
-                    error_messages[field] = field_error_message
-            if error_messages:
-                return JsonResponse({'message': error_messages, 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return JsonResponse({'message': 'Error', 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            # Handle other unexpected errors
-            return JsonResponse({'message': 'An unexpected error occurred.', 'status': "false"},
-                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # Construct custom error response format
+            errors = {}
+            for field, field_errors in serializer.errors.items():
+                errors[field] = ', '.join(field_errors)
+            response_data = {'messages': errors, 'status': 'false'}
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
 
 
 class EmailVerificationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
     permission_classes = [AllowAny]
+
     def get(self, request, uidb64, token):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
@@ -113,10 +104,10 @@ class EmailVerificationView(APIView):
             user.email_verified = True
             user.save()
             token = get_tokens_for_user(user)
-            return JsonResponse({'token':token, 'message': 'Email verified successfully.','status':"true"}, status=status.HTTP_200_OK)
-        return JsonResponse({'error': 'Invalid verification link.','status':'false'}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({'token': token, 'message': 'Email verified successfully.', 'status': 'true'}, status=status.HTTP_200_OK)
+        return JsonResponse({'message': 'Invalid verification link.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
 
-from rest_framework.exceptions import ValidationError as DRFValidationError
+
 
 class UserLoginView(APIView):
     authentication_classes = []
@@ -142,7 +133,7 @@ class UserLoginView(APIView):
             # Extract blank field errors if any
             blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
             if blank_fields:
-                error_message = " ".join([details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields])
+                error_message = {field: details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields}
                 return JsonResponse({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 # Return other validation errors
@@ -163,32 +154,85 @@ class UserProfileView(APIView):
 
 
 class UserChangePasswordView(APIView):
-  renderer_classes = [UserRenderer]  # Assuming UserRenderer is defined elsewhere
-  permission_classes = [IsAuthenticated]
+    renderer_classes = [UserRenderer]  # Assuming UserRenderer is defined elsewhere
+    permission_classes = [IsAuthenticated]
 
-  def post(self, request, format=None):
-    serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
-    serializer.is_valid(raise_exception=True)
-    return JsonResponse({'message': 'Password Changed Successfully','status': 'true'}, status=status.HTTP_200_OK)
+    def post(self, request, format=None):
+        try:
+            serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response({'message': 'Password changed successfully.', 'status': 'true'}, status=status.HTTP_200_OK)
+        except serializers.ValidationError as e:
+            errors = {}
+            for field, details in e.get_full_details().items():
+                # Check if the error message contains "blank" or "This field may not be blank."
+                if "blank" in details[0]['message'] or "This field may not be blank." in details[0]['message']:
+                    errors[field] = "This field may not be blank."
+                elif "Incorrect old password" in details[0]['message']:
+                    errors[field] = "Incorrect old password."
+                else:
+                    errors[field] = details[0]['message']
+            return Response({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SendPasswordResetEmailView(APIView):
-  authentication_classes = []  # Exclude authentication for this view
-  permission_classes = [AllowAny]
-  renderer_classes = [UserRenderer]
-  def post(self, request, format=None):
-    serializer = SendPasswordResetEmailSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    return JsonResponse({'message':'Password Reset link send. Please check your Email','status': 'true'}, status=status.HTTP_200_OK)
+    authentication_classes = []  # Exclude authentication for this view
+    permission_classes = [AllowAny]
+    renderer_classes = [UserRenderer]
+
+    def post(self, request, format=None):
+        try:
+            serializer = SendPasswordResetEmailSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            # If serializer is valid, perform the action and return success response
+            # For example, sending the password reset email
+            return Response({'message': 'Password Reset link sent. Please check your Email', 'status': 'true'}, status=status.HTTP_200_OK)
+        except serializers.ValidationError as e:
+            # Extract blank field errors if any
+            blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
+            if blank_fields:
+                error_message = " ".join([details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields])
+                return Response({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Return other validation errors
+                errors = {}
+                for field, details in e.get_full_details().items():
+                    errors[field] = details[0]['message']
+                return Response({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Handle other unexpected errors
+            return Response({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class UserPasswordResetView(APIView):
-  authentication_classes = []  # Exclude authentication for this view
-  permission_classes = [AllowAny]
-  renderer_classes = [UserRenderer]
-  def post(self, request, uid, token, format=None):
-    serializer = UserPasswordResetSerializer(data=request.data, context={'uid':uid, 'token':token})
-    serializer.is_valid(raise_exception=True)
-    return JsonResponse({'message':'Password Reset Successfully','status': 'true'}, status=status.HTTP_200_OK)
+    authentication_classes = []  # Exclude authentication for this view
+    permission_classes = [AllowAny]
+    renderer_classes = [UserRenderer]
+
+    def post(self, request, uid, token, format=None):
+        try:
+            serializer = UserPasswordResetSerializer(data=request.data, context={'uid':uid, 'token':token})
+            serializer.is_valid(raise_exception=True)
+            return JsonResponse({'message':'Password Reset Successfully','status': 'true'}, status=status.HTTP_200_OK)
+        except ValidationError as e:
+            # Extract blank field errors if any
+            blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
+            if blank_fields:
+                error_message = " ".join([details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields])
+                return JsonResponse({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Return other validation errors
+                errors = {}
+                for field, details in e.get_full_details().items():
+                    errors[field] = details[0]['message']
+                return JsonResponse({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Handle other unexpected errors
+            return JsonResponse({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 

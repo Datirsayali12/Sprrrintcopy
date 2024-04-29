@@ -1,10 +1,18 @@
+from urllib import request
+
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
+
 from .models import User
 from .models import Creator
 from django.core.mail import send_mail
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
+import os
+from django.conf import settings
+import uuid
 
 
 # from .utils import send_mail_to_client
@@ -31,9 +39,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data.pop('confirm_password')  # Remove confirm_password from data
         return User.objects.create_user(**validated_data)
 
+
 class CreatorRegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(style={'input_type': 'password'}, write_only=True)
-    profile_pic = serializers.URLField(write_only=True)
+    profile_pic = serializers.ImageField(write_only=True)
     terms_and_condition = serializers.BooleanField(write_only=True)
 
     class Meta:
@@ -43,42 +52,49 @@ class CreatorRegistrationSerializer(serializers.ModelSerializer):
             'password': {'write_only': True},
             'email': {'error_messages': {'required': 'Email is required.'}},
             'name': {'error_messages': {'required': 'Name is required.'}},
-            'confirm_password': {'error_messages': {'required': 'Confirm Password is required.'}},
-            'profile_pic': {'error_messages': {'required': 'Profile Picture is required.'}},
-            'terms_and_condition': {'error_messages': {'required': 'Terms and Condition agreement is required.'}}
         }
 
     def validate(self, attrs):
-        required_fields = ['email', 'name', 'password', 'confirm_password', 'profile_pic', 'terms_and_condition']
-        for field in required_fields:
-            if field in attrs and attrs[field] == '':
-                error_message = {field: f"{field.capitalize()} cannot be blank"}
-                raise serializers.ValidationError(error_message)
-
         password = attrs.get('password')
-        confirm_password = attrs.get('confirm_password')
+        confirm_password = attrs.pop('confirm_password')  # Remove confirm_password from attrs
         if password != confirm_password:
             raise serializers.ValidationError("Password and Confirm Password don't match")
+
+        # Validate password strength using Django's built-in password validation
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            raise serializers.ValidationError(str(e))
+
+        # Validate terms_and_condition
+        if not attrs.get('terms_and_condition'):
+            raise serializers.ValidationError("Terms and Conditions agreement is required.")
 
         return attrs
 
     def create(self, validated_data):
-        profile_pic = validated_data.pop('profile_pic', None)
-        terms_and_condition = validated_data.pop('terms_and_condition', False)
-        validated_data.pop('confirm_password')
+        profile_pic = validated_data.pop('profile_pic')  # Extracting profile pic data
+        terms_and_condition = validated_data.pop('terms_and_condition', False)  # Extracting terms_and_condition
 
+        # Create user object
         user = User.objects.create_user(**validated_data)
 
-        if profile_pic or terms_and_condition:
-            creator_data = {'user': user}
-            if profile_pic:
-                creator_data['profile_pic'] = profile_pic
-            if terms_and_condition:
-                creator_data['terms_and_condition'] = terms_and_condition
-            Creator.objects.create(**creator_data)
+        # Process profile pic and store it with a unique URL
+        file_name = generate_unique_filename(profile_pic.name)
+        file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+        with open(file_path, 'wb+') as destination:
+            for chunk in profile_pic.chunks():
+                destination.write(chunk)
+        file_url = settings.MEDIA_URL + file_name
+
+        # Create creator object and associate with the user
+        creator = Creator.objects.create(user=user, profile_pic=file_url, terms_and_condition=terms_and_condition)
 
         return user
-
+def generate_unique_filename(filename):
+    # Generate a unique filename using uuid
+    unique_filename = str(uuid.uuid4()) + os.path.splitext(filename)[-1]
+    return unique_filename
 
 class UserLoginSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(max_length=255, error_messages={'required': 'Email is required.',
@@ -105,15 +121,25 @@ class UserChangePasswordSerializer(serializers.Serializer):
         old_password = attrs.get('old_password')
         new_password = attrs.get('new_password')
 
+        if not old_password:
+            raise serializers.ValidationError("Old password cannot be blank")
+        if not new_password:
+            raise serializers.ValidationError("New password cannot be blank")
+
         if not user.check_password(old_password):
             raise serializers.ValidationError("Incorrect old password")
 
         if old_password == new_password:
             raise serializers.ValidationError("New password must be different from the old password")
 
-        user.set_password(new_password)
-        user.save()
+        # Validate the strength of the new password
+        try:
+            validate_password(new_password, user=user)
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError(e.messages)
+
         return attrs
+
 
 
 def send_mail_to_client(subject, body, to_email):
