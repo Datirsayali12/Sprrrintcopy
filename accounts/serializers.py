@@ -81,7 +81,10 @@ def create(self, validated_data):
 
 
 class UserLoginSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(max_length=255)
+    email = serializers.EmailField(max_length=255, required=True,
+                                   error_messages={'required': 'Email is required.', 'blank': 'Email cannot be blank.'})
+    password = serializers.CharField(max_length=128, required=True, error_messages={'required': 'Password is required.',
+                                                                                    'blank': 'Password cannot be blank.'})
 
     class Meta:
         model = User
@@ -89,6 +92,8 @@ class UserLoginSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(max_length=255, required=True,
+                                   error_messages={'required': 'Email is required.', 'blank': 'Email cannot be blank.'})
     class Meta:
         model = User
         fields = ['id', 'email', 'name']
