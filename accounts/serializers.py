@@ -48,21 +48,21 @@ class CreatorRegistrationSerializer(serializers.ModelSerializer):
             'terms_and_condition': {'error_messages': {'required': 'Terms and Condition agreement is required.'}}
         }
 
-        def validate(self, attrs):
-            required_fields = ['email', 'name', 'password', 'confirm_password', 'profile_pic', 'terms_and_condition']
-            for field in required_fields:
-                if field not in attrs:
-                    error_message = {'messages': f"{field.capitalize()} required", 'status': "false"}
-                    raise serializers.ValidationError(error_message)
+    def validate(self, attrs):
+        required_fields = ['email', 'name', 'password', 'confirm_password', 'profile_pic', 'terms_and_condition']
+        for field in required_fields:
+            if field in attrs and attrs[field] == '':
+                error_message = {field: f"{field.capitalize()} cannot be blank"}
+                raise serializers.ValidationError(error_message)
 
-            password = attrs.get('password')
-            confirm_password = attrs.get('confirm_password')
-            if password != confirm_password:
-                raise serializers.ValidationError("Password and Confirm Password don't match")
-            return attrs
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
+        if password != confirm_password:
+            raise serializers.ValidationError("Password and Confirm Password don't match")
 
+        return attrs
 
-def create(self, validated_data):
+    def create(self, validated_data):
         profile_pic = validated_data.pop('profile_pic', None)
         terms_and_condition = validated_data.pop('terms_and_condition', False)
         validated_data.pop('confirm_password')
@@ -81,10 +81,9 @@ def create(self, validated_data):
 
 
 class UserLoginSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(max_length=255, required=True,
-                                   error_messages={'required': 'Email is required.', 'blank': 'Email cannot be blank.'})
-    password = serializers.CharField(max_length=128, required=True, error_messages={'required': 'Password is required.',
-                                                                                    'blank': 'Password cannot be blank.'})
+    email = serializers.EmailField(max_length=255, error_messages={'required': 'Email is required.',
+                                                                   'invalid': 'Enter a valid email address.'})
+    password = serializers.CharField(error_messages={'required': 'Password is required.'})
 
     class Meta:
         model = User
@@ -92,8 +91,6 @@ class UserLoginSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(max_length=255, required=True,
-                                   error_messages={'required': 'Email is required.', 'blank': 'Email cannot be blank.'})
     class Meta:
         model = User
         fields = ['id', 'email', 'name']

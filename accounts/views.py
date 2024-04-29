@@ -1,10 +1,11 @@
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, ErrorDetail
 from rest_framework.response import Response
 from .serializers import UserRegistrationSerializer,UserLoginSerializer,UserProfileSerializer,UserChangePasswordSerializer,SendPasswordResetEmailSerializer,UserPasswordResetSerializer,CreatorRegistrationSerializer
 from rest_framework import status
 from rest_framework.views import APIView
 from .serializers import UserRegistrationSerializer
 from django.contrib.auth import authenticate
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from .renderers import UserRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
@@ -19,7 +20,6 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from .models import User
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import AllowAny
-from rest_framework import serializers
 
 def get_tokens_for_user(user):
   refresh = RefreshToken.for_user(user)
@@ -54,41 +54,50 @@ class UserRegistrationView(APIView):
 
 
 
+
+
+
+
 class CreatorRegistrationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
     permission_classes = [AllowAny]
 
     def post(self, request, format=None):
+        serializer = CreatorRegistrationSerializer(data=request.data)
         try:
-            serializer = CreatorRegistrationSerializer(data=request.data)
-            if serializer.is_valid():
-                user = serializer.save()
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
 
-                token = default_token_generator.make_token(user)
+            token = default_token_generator.make_token(user)
 
-                current_site = get_current_site(request)
-                domain = current_site.domain
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
-                verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+            current_site = get_current_site(request)
+            domain = current_site.domain
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
 
-                subject = 'Verify Your Email Address'
-                message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
-                email = EmailMessage(subject, message, to=[user.email])
-                email.send()
+            subject = 'Verify Your Email Address'
+            message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
+            email = EmailMessage(subject, message, to=[user.email])
+            email.send()
 
-                return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.', 'status': "true"}, status=status.HTTP_201_CREATED)
+            return JsonResponse(
+                {'message': 'User registered successfully. Please check your email for verification instructions.',
+                 'status': "true"}, status=status.HTTP_201_CREATED)
+        except DRFValidationError as e:
+            error_messages = {}
+            for field, errors in e.detail.items():
+                field_error_message = ', '.join([str(error) for error in errors if isinstance(error, ErrorDetail)])
+                if field_error_message:
+                    error_messages[field] = field_error_message
+            if error_messages:
+                return JsonResponse({'message': error_messages, 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
             else:
-                # Extracting serializer errors for more informative response
-                errors = {}
-                for field, field_errors in serializer.errors.items():
-                    errors[field] = field_errors[0]  # Taking the first error for each field
-                return JsonResponse({'message': errors, 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
-        except ValidationError as e:
-            # Handling validation errors raised by the serializer
-            return JsonResponse({'message': str(e), 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({'message': 'Error', 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # Handling other unexpected errors
-            return JsonResponse({'message': 'An error occurred.', 'status': "false"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Handle other unexpected errors
+            return JsonResponse({'message': 'An unexpected error occurred.', 'status': "false"},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class EmailVerificationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
@@ -106,9 +115,8 @@ class EmailVerificationView(APIView):
             token = get_tokens_for_user(user)
             return JsonResponse({'token':token, 'message': 'Email verified successfully.','status':"true"}, status=status.HTTP_200_OK)
         return JsonResponse({'error': 'Invalid verification link.','status':'false'}, status=status.HTTP_400_BAD_REQUEST)
-    
 
-
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 class UserLoginView(APIView):
     authentication_classes = []
@@ -118,23 +126,33 @@ class UserLoginView(APIView):
         serializer = UserLoginSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
-            email = serializer.validated_data['email']
-            password = serializer.validated_data['password']
+            email = serializer.validated_data.get('email')
+            password = serializer.validated_data.get('password')
             user = authenticate(email=email, password=password)
 
             if user is not None:
                 if user.email_verified:
-                    # Generate token or whatever your login logic requires
                     token = get_tokens_for_user(user)
                     return JsonResponse({'token': token, 'message': 'Login successful.', 'status': 'true'}, status=status.HTTP_200_OK)
                 else:
                     return JsonResponse({'message': 'Email not verified. Please verify your email to log in.', 'status': 'false'}, status=status.HTTP_403_FORBIDDEN)
             else:
                 return JsonResponse({'message': 'Invalid email or password.', 'status': 'false'}, status=status.HTTP_404_NOT_FOUND)
-        except serializers.ValidationError as e:
-            return JsonResponse({'message': e.detail.get('non_field_errors', 'An error occurred.'), 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+        except DRFValidationError as e:
+            # Extract blank field errors if any
+            blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
+            if blank_fields:
+                error_message = " ".join([details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields])
+                return JsonResponse({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Return other validation errors
+                errors = {}
+                for field, details in e.get_full_details().items():
+                    errors[field] = details[0]['message']
+                return JsonResponse({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return JsonResponse({'message': 'An error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Handle other unexpected errors
+            return JsonResponse({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserProfileView(APIView):
   renderer_classes = [UserRenderer]
