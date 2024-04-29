@@ -1,3 +1,4 @@
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from .serializers import UserRegistrationSerializer,UserLoginSerializer,UserProfileSerializer,UserChangePasswordSerializer,SendPasswordResetEmailSerializer,UserPasswordResetSerializer,CreatorRegistrationSerializer
 from rest_framework import status
@@ -55,26 +56,33 @@ class UserRegistrationView(APIView):
 class CreatorRegistrationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
     permission_classes = [AllowAny]
+
     def post(self, request, format=None):
-        serializer = CreatorRegistrationSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
+        try:
+            serializer = CreatorRegistrationSerializer(data=request.data)
+            if serializer.is_valid():
+                user = serializer.save()
 
-            token = default_token_generator.make_token(user)
+                token = default_token_generator.make_token(user)
 
-            current_site = get_current_site(request)
-            domain = current_site.domain
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+                current_site = get_current_site(request)
+                domain = current_site.domain
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                verification_url = f'http://{domain}{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
 
-            subject = 'Verify Your Email Address'
-            message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
-            email = EmailMessage(subject, message, to=[user.email])
-            email.send()
+                subject = 'Verify Your Email Address'
+                message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
+                email = EmailMessage(subject, message, to=[user.email])
+                email.send()
 
-            return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.','status':"true"}, status=status.HTTP_201_CREATED)
-        return JsonResponse({'message': 'user with this Email already exists ','status':"false"},status=status.HTTP_400_BAD_REQUEST)
-    
+                return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.', 'status': "true"}, status=status.HTTP_201_CREATED)
+            else:
+                return JsonResponse({'message': 'Invalid data provided.', 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError:
+            return JsonResponse({'message': 'Validation error occurred.', 'status': "false"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return JsonResponse({'message': str(e), 'status': "false"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class EmailVerificationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
     permission_classes = [AllowAny]

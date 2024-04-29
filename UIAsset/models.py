@@ -32,6 +32,19 @@ class Category(models.Model):
 #
 #     def __str__(self):
 #         return self.name
+class FileType(models.Model):
+    name = models.CharField(unique=True,max_length=255, help_text="this for file type name")
+    extension=models.CharField(unique=True,max_length=255, help_text="this for file extension")
+    updated_at = models.DateField(auto_now=True)
+    created_at = models.DateField(auto_now_add=True)
+    #slug=AutoSlugField(name="name")
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.lower()
+        super().save(*args, **kwargs)
 
 
 class Tag(models.Model):
@@ -58,17 +71,17 @@ class Tag(models.Model):
 #         return self.type
 
 
-class AssetType(models.Model):
-    name = models.CharField(max_length=255, help_text="this will store Asset type like:jpg,png,mp4 ")
-    created_at = models.DateField(auto_now_add=True)
-    updated_at = models.DateField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        self.name = self.name.lower()
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
+# class AssetType(models.Model):
+#     name = models.CharField(max_length=255, help_text="this will store Asset type like:jpg,png,mp4 ")
+#     created_at = models.DateField(auto_now_add=True)
+#     updated_at = models.DateField(auto_now=True)
+#
+#     def save(self, *args, **kwargs):
+#         self.name = self.name.lower()
+#         super().save(*args, **kwargs)
+#
+#     def __str__(self):
+#         return self.name
 
 class Image(models.Model):
     url=models.URLField(unique=True,help_text="for product asset Image URLs")
@@ -134,6 +147,8 @@ class Pack(models.Model):
     discount_price=models.IntegerField(default=0,help_text="this for discount price")
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
     assets=models.ManyToManyField(Asset,help_text="for all assets file that related to product")
+    # filetypes=models.ManyToManyField(FileType,help_text="for all filetypes that related to product")
+    # font_types=
     slug = AutoSlugField(populate_from='name')
 
     def save(self, *args, **kwargs):
