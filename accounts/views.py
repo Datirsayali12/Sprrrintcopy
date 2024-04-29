@@ -73,7 +73,7 @@ class CreatorRegistrationView(APIView):
             email.send()
 
             return JsonResponse({'message': 'User registered successfully. Please check your email for verification instructions.','status':"true"}, status=status.HTTP_201_CREATED)
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({'message': 'user with this Email already exists ','status':"False"},status=status.HTTP_400_BAD_REQUEST)
     
 class EmailVerificationView(APIView):
     authentication_classes = []  # Exclude authentication for this view
