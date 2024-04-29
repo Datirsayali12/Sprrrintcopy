@@ -105,10 +105,13 @@ def upload_asset(request):
             tag_names = data_dict.get('tags', [])
             for tag_name in tag_names:
                 # Check if the tag already exists
-                tag, created = Tag.objects.get_or_create(name=tag_name)
-                if not created:
-                    # If the tag already exists, no need to create a new one, just use the existing tag
-                    asset.tags.add(tag)
+                try:
+                    tag = Tag.objects.get(name=tag_name)
+                except Tag.DoesNotExist:
+                    # If the tag does not exist, create a new one
+                    tag = Tag.objects.create(name=tag_name)
+                # Associate the tag with the asset
+                asset.tags.add(tag)
             asset.save()
 
             return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
