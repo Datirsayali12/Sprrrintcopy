@@ -111,9 +111,9 @@ class UserLoginView(APIView):
                 token = get_tokens_for_user(user)
                 return JsonResponse({'token': token, 'message': 'Login Success','status':"true"}, status=status.HTTP_200_OK)
             else:
-                return JsonResponse({'error': 'Email not verified. Please verify your email to log in.','status':'false'}, status=status.HTTP_403_FORBIDDEN)
+                return JsonResponse({'message': 'Email not verified. Please verify your email to log in.','status':'false'}, status=status.HTTP_403_FORBIDDEN)
         else:
-            return JsonResponse({'errors': {'non_field_errors': ['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({'message': 'Email or Password is not Valid','status':'false'}, status=status.HTTP_404_NOT_FOUND)
 
 class UserProfileView(APIView):
   renderer_classes = [UserRenderer]
