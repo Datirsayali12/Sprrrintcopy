@@ -1,7 +1,5 @@
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-
-from . import serializers
 from .serializers import UserRegistrationSerializer,UserLoginSerializer,UserProfileSerializer,UserChangePasswordSerializer,SendPasswordResetEmailSerializer,UserPasswordResetSerializer,CreatorRegistrationSerializer
 from rest_framework import status
 from rest_framework.views import APIView
@@ -114,23 +112,22 @@ class EmailVerificationView(APIView):
 class UserLoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
+
     def post(self, request, format=None):
         serializer = UserLoginSerializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-            user = serializer.validated_data['user']
+        serializer.is_valid(raise_exception=True)
+        email = serializer.data.get('email')
+        password = serializer.data.get('password')
+        user = authenticate(email=email, password=password)
 
-            if user is not None:
-                if user.email_verified:
-                    # Generate token or whatever your login logic requires
-                    token = get_tokens_for_user(user)
-                    return JsonResponse({'token': token, 'message': 'Login successful.', 'status': 'true'}, status=status.HTTP_200_OK)
-                else:
-                    return JsonResponse({'message': 'Email not verified. Please verify your email to log in.', 'status': 'false'}, status=status.HTTP_403_FORBIDDEN)
-        except serializers.ValidationError as e:
-            return JsonResponse({'message': e.detail, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return JsonResponse({'message': str(e), 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if user is not None:
+            if user.email_verified:
+                token = get_tokens_for_user(user)
+                return JsonResponse({'token': token, 'message': 'Login Success','status':"true"}, status=status.HTTP_200_OK)
+            else:
+                return JsonResponse({'message': 'Email not verified. Please verify your email to log in.','status':'false'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return JsonResponse({'message': 'Email or Password is not Valid','status':'false'}, status=status.HTTP_404_NOT_FOUND)
 
 class UserProfileView(APIView):
   renderer_classes = [UserRenderer]
