@@ -1,0 +1,61 @@
+import mysql.connector
+conn=mysql.connector.connect(host="localhost",user="root",password="",database="pythondb")
+print(conn)
+
+if(conn):
+    print("connection sucessful")
+else:
+    print("connection unsuceeful")
+
+mycursor=conn.cursor()
+# mycursor.execute("show databases")
+# for i in mycursor:
+#     print(i)
+
+#create table
+#mycursor.execute("create table emp(id int,name varchar(50))")
+
+#insert data
+
+#mycursor.execute("insert into emp(id,name) values(12,'sayali')")
+
+insertdata="insert into emp(id , name) values (%s,%s)" #take any value
+
+#insert multiple data
+
+# records=[
+#     (102,"sahil"),
+#     (103,"pooja")
+# ]
+#
+# mycursor.executemany(insertdata,records)
+# conn.commit()
+
+#show data
+
+# mycursor.execute("select * from emp")
+#
+# show=mycursor.fetchall()
+# for i in show:
+#     print(i)
+
+#fetch particular data
+
+# mycursor.execute("select name from emp where id=102")
+#
+# show=mycursor.fetchone()
+# print(show)
+# for i in show:
+#     print(i)
+
+#update
+
+#up=mycursor.execute("update emp set name='ravi where id=102")
+
+#update any value
+
+# db_update_data="update emp set id=%s where name=%s"
+#
+# value=(50,"sahil")
+# mycursor.execute(db_update_data,value)
+

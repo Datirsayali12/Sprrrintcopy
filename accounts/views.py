@@ -161,22 +161,19 @@ class UserChangePasswordView(APIView):
         try:
             serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
             serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response({'message': 'Password changed successfully.', 'status': 'true'}, status=status.HTTP_200_OK)
+            return Response({'msg': 'Password Changed Successfully'}, status=status.HTTP_200_OK)
         except serializers.ValidationError as e:
-            errors = {}
-            for field, details in e.get_full_details().items():
-                # Check if the error message contains "blank" or "This field may not be blank."
-                if "blank" in details[0]['message'] or "This field may not be blank." in details[0]['message']:
-                    errors[field] = "This field may not be blank."
-                elif "Incorrect old password" in details[0]['message']:
-                    errors[field] = "Incorrect old password."
-                else:
-                    errors[field] = details[0]['message']
-            return Response({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+            # Check if any field is blank
+            blank_fields = {field: "This field may not be blank." for field, details in e.get_full_details().items() if 'blank' in details[0]['message']}
+            if blank_fields:
+                return Response({'message': blank_fields, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Return other validation errors
+                errors = {field: details[0]['message'] for field, details in e.get_full_details().items()}
+                return Response({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            # Handle other unexpected errors
             return Response({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class SendPasswordResetEmailView(APIView):
     authentication_classes = []  # Exclude authentication for this view

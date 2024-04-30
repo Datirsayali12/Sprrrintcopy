@@ -12,6 +12,7 @@ from rest_framework import status
 from django.db.models import Q
 import json
 from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from zipfile import ZipFile
 from django.db import IntegrityError
 from rest_framework.permissions import AllowAny
@@ -28,7 +29,11 @@ def upload_asset(request):
 
         try:
             asset_name = data_dict.get('name')
-            print(asset_name)
+
+            # Check if asset with the same name exists
+            if Asset.objects.filter(name__iexact=asset_name).exists():
+                return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
 
@@ -36,13 +41,13 @@ def upload_asset(request):
             required_fields = ['name', 'category_id', 'credits']
             for field in required_fields:
                 if field not in data_dict or not data_dict[field]:
-                    return JsonResponse({'error': f'{field} is required'}, status=400)
+                    return JsonResponse({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 category_id = data_dict.get('category_id')
                 category = Category.objects.get(pk=category_id)
             except (ValueError, Category.DoesNotExist):
-                return JsonResponse({'error': 'Invalid category ID'}, status=400)
+                return JsonResponse({'error': 'Invalid category ID'}, status=status.HTTP_400_BAD_REQUEST)
 
             # hero images uploads
             asset_hero_images = []
@@ -83,18 +88,16 @@ def upload_asset(request):
                 file_objects.append(asset_file)
 
             # asset creation
+            u=User.objects.first()
             is_free = data_dict.get('is_free', False)
-            print(is_free)
 
-            user = User.objects.first()
             asset = Asset.objects.create(
-                name=data_dict.get('name'),
-                creator=user,
+                name=asset_name,
+                creator=u,
                 base_price=data_dict.get('credits'),
                 category=category,
                 is_free=is_free
             )
-            asset.save()
 
             # add hero images and asset files to asset
             asset.image.add(*asset_hero_images)
@@ -106,31 +109,14 @@ def upload_asset(request):
             tag_names = data_dict.get('tags', [])
             for tag_name in tag_names:
                 # Check if the tag already exists
-                try:
-                    tag = Tag.objects.get(name=tag_name)
-                except Tag.DoesNotExist:
-                    # If the tag does not exist, create a new one
-                    tag = Tag.objects.create(name=tag_name)
+                tag, _ = Tag.objects.get_or_create(name=tag_name.lower())
                 # Associate the tag with the asset
                 asset.tags.add(tag)
             asset.save()
 
             return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
 
-        except IntegrityError as e:
-            # If the error is due to tag creation, assign existing tag to the asset
-            if "UNIQUE constraint failed: assets_tag.name" in str(e):
-                tag_names = data_dict.get('tags', [])
-                for tag_name in tag_names:
-                    tag = Tag.objects.filter(name=tag_name).first()
-                    if tag:
-                        asset.tags.add(tag)
-                asset.save()
-                return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
-            else:
-                return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
-
-        except ValidationError as e:
+        except DjangoValidationError as e:
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
@@ -138,7 +124,6 @@ def upload_asset(request):
 
     else:
         return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
 
 
 #@permission_classes([IsAuthenticated])
@@ -162,13 +147,14 @@ def create_from_existing(request):
 
         # Set default value for is_free if not provided
         is_free = data.get('is_free', False)
-        user=User.objects.first()
+
         #create new asset
         try:
+            user = User.objects.first()
             new_asset = Asset.objects.create(
                 name=data.get('name', ''),
                 # creator=request.user,
-                creator=user,
+                creator=user.id,
                 base_price=data.get('credits', 0),
                 category=existing_asset.category,
                 is_free=is_free,
