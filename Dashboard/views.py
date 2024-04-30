@@ -193,7 +193,6 @@ def upload_pack(request):
         data_dict = json.loads(data)
         slider_images = request.FILES.getlist('slider_images')
         print(slider_images)
-        no_of_styles=data_dict.get('no_of_styles')
 
         required_fields = ['name', 'category_id', 'credits', 'tags', 'is_free']
         for field in required_fields:
@@ -238,7 +237,7 @@ def upload_pack(request):
         pack_hero_images_objects = []
         hero_images = request.FILES.getlist('hero_images')
 
-        for uploaded_file in hero_images:
+        for index, uploaded_file in enumerate(hero_images):
             file_name = generate_unique_filename(uploaded_file.name)
             file_path = os.path.join(settings.MEDIA_ROOT, file_name)
             with open(file_path, 'wb+') as destination:
@@ -247,23 +246,29 @@ def upload_pack(request):
 
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
             image, _ = Image.objects.get_or_create(url=file_url)
-            image.is_hero=True
+            if index == 0:  # First image
+                image.is_hero = True
+            else:
+                image.is_hero = False
             image.save()
             pack_hero_images_objects.append(image)
 
-        #upload pack slider images
-        pack_slider_images = []
-        for slider_image in slider_images:
-            file_name = generate_unique_filename(slider_image.name)
-            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in slider_image.chunks():
-                    destination.write(chunk)
-            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_image = Image.objects.create(url=file_url)
-            asset_image.is_hero = False
-            asset_image.save()
-            pack_slider_images.append(asset_image)
+
+        # #upload pack slider images
+        # pack_slider_images = []
+        # for slider_image in slider_images:
+        #     file_name = generate_unique_filename(slider_image.name)
+        #     file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+        #     with open(file_path, 'wb+') as destination:
+        #         for chunk in slider_image.chunks():
+        #             destination.write(chunk)
+        #     file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+        #     asset_image = Image.objects.create(url=file_url)
+        #     asset_image.is_hero = False
+        #     asset_image.save()
+        #     pack_slider_images.append(asset_image)
+
+
 
         #pack creation
         is_free = data_dict['is_free']
@@ -292,22 +297,43 @@ def upload_pack(request):
         #add tags
         tag_names = data_dict.get('tags', [])
         for tag_name in tag_names:
-            tag, _ = Tag.objects.get_or_create(name=tag_name)
+            tag, _ = Tag.objects.get_or_create(name=tag_name.lower())
             pack.tags.add(tag)
+        pack.save()
+
+        font_types = data_dict.get('font_types', [])
+        for font_type in font_types:
+            font, _ = FontType.objects.get_or_create(name=font_type.lower())
+            pack.font_types.add(font)
+        pack.save()
+
+        if category.name.lower() == 'fonts':
+            preview_images = request.FILES.getlist('preview_images')
+            pack.total_assets = len(preview_images)
+        else:
+            pack.total_assets = 0
 
         pack.image.add(*pack_hero_images_objects)
         pack.save()
-        pack.image.add(*pack_slider_images)
-        pack.save()
+        # pack.image.add(*pack_slider_images)
+        # pack.save()
         pack.image.add(*preview_images_objects)
         pack.save()
         total_assets = pack.assets.count()
         pack.total_assets = total_assets
         pack.save()
 
-        # #fonts number of styles
-        # pack.total_assets=no_of_styles
-        # pack.save()
+        filetypes_data = data_dict.get('filetypes', [])
+        for filetype_data in filetypes_data:
+            name = filetype_data.get('name')
+            extension = filetype_data.get('extension')
+            existing_filetype = FileType.objects.filter(extension=extension).first()
+            if existing_filetype:
+                pack.filetypes.add(existing_filetype)
+            else:
+                filetype = FileType.objects.create(name=name, extension=extension)
+                pack.filetypes.add(filetype)
+            pack.save()
 
         return JsonResponse({'message': 'Pack created successfully', 'pack_id': pack.id,'total_assets':total_assets,'status':'true'}, status=status.HTTP_201_CREATED)
 
@@ -482,18 +508,22 @@ def update_asset(request):
 
 
 #@permission_classes([IsAuthenticated])
-@api_view(['GET'])
+@api_view(['POST'])
 def get_all_packs(request):
-    u=User.objects.first()
     try:
-        # packs = Pack.objects.filter(is_active=True,creator=request.user)
-        packs = Pack.objects.filter(is_active=True)
-        packs_data = []
+        category_id = request.data.get('category_id')
 
+        if not category_id:
+            return JsonResponse({'error': 'Category ID is required in the request data'},
+                                status=status.HTTP_400_BAD_REQUEST)
+        category = Category.objects.get(pk=category_id)
+        packs= Pack.objects.filter(category=category, is_active=True)
+
+        packs_data = []
         for pack in packs:
             assets = pack.assets.filter(is_active=True)
 
-            pack_data = {
+            pack_info = {
                 'id': pack.id,
                 'title': pack.name,
                 #'creator': pack.u.id,
@@ -503,10 +533,18 @@ def get_all_packs(request):
                 'is_active': pack.is_active,
                 'created_at': pack.created_at,
                 'updated_at': pack.updated_at,
-                'tags': [{"name":tag.name,"tag_id":tag.id} for tag in pack.tags.all()],
-                'hero_images': [{"image_id":image.id,"image_url":image.url} for image in pack.image.filter(is_hero=True)],
-                'slider_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_hero=False)],
-                'preview_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_preview=True)],
+                'tags': [{"name": tag.name, "tag_id": tag.id} for tag in pack.tags.all()],
+                'hero_images': [{"image_id": image.id, "image_url": image.url} for image in
+                                pack.image.filter(is_hero=True)],
+                'slider_images': [{"image_id": image.id, "image_url": image.url} for image in
+                                   pack.image.filter(is_hero=False)],
+                'preview_images': [{"image_id": image.id, "image_url": image.url} for image in
+                                    pack.image.filter(is_preview=True)],
+                'font_types':[{"font_id": font.id, "image_url": font.name} for font in
+                                    pack.font_types.all()],
+                'file_types': [{"title": file.name, "extension": file.extension} for file in
+                               pack.filetypes.all()],
+
                 'assets': []
             }
 
@@ -520,32 +558,39 @@ def get_all_packs(request):
                     'is_active': asset.is_active,
                     'created_at': asset.created_at,
                     'updated_at': asset.updated_at,
-                    'tags': [{"tag_id":tag.id,"tag_name":tag.name} for tag in asset.tags.all()],
-                    'images': [{"image_id":img.id,"image_url":img.url} for img in asset.image.all()],
-                    'asset_file':[{"file_id":file.id,"file_url":file.url} for file in asset.asset_file.all()]
+                    'tags': [{"tag_id": tag.id, "tag_name": tag.name} for tag in asset.tags.all()],
+                    'images': [{"image_id": img.id, "image_url": img.url} for img in asset.image.all()],
+                    'asset_file': [{"file_id": file.id, "file_url": file.url} for file in asset.asset_file.all()]
                 }
-                pack_data['assets'].append(asset_data)
+                pack_info['assets'].append(asset_data)
 
-            packs_data.append(pack_data)
+            packs_data.append(pack_info)
 
-        return JsonResponse({'packs': packs_data,'status':'true'}, status=status.HTTP_200_OK)
+        return JsonResponse({'packs': packs_data, 'status': 'true'}, status=status.HTTP_200_OK)
+    except Category.DoesNotExist:
+        return JsonResponse({'error': 'Category does not exist', 'status': 'false'}, status=status.HTTP_404_NOT_FOUND)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+  # packs = Pack.objects.filter(is_active=True,creator=request.user)
 #@permission_classes([IsAuthenticated])
-@api_view(['GET'])
+@api_view(['POST'])
 def get_packs_by_title_or_tag(request):
     try:
-        query = request.GET.get('query', '')
-        # packs = Pack.objects.filter(is_active=True,creator=request.user)
-        packs = Pack.objects.filter(is_active=True)
+        category_id = request.data.get('category_id')
+        query = request.data.get('query', '')
+
+        if not category_id:
+            return JsonResponse({'error': 'Category ID is required in the request data'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+        packs = Pack.objects.filter(category_id=category_id, is_active=True)
 
         if query:
             packs = packs.filter(Q(name__icontains=query) | Q(tags__name__icontains=query))
 
-        u = User.objects.first()
         packs_data = []
 
         for pack in packs:
@@ -561,9 +606,16 @@ def get_packs_by_title_or_tag(request):
                 'created_at': pack.created_at,
                 'updated_at': pack.updated_at,
                 'tags': [{"tag_id":tag.id,"tag_name":tag.name} for tag in pack.tags.all()],
-                'hero_images': [{"image_id":image.id,"image_url":image.url} for image in pack.image.filter(is_hero=True)],
-                'slider_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_hero=False)],
-                'preview_images': [{"image_id": image.id, "image_url": image.url} for image in pack.image.filter(is_preview=True)],
+                'hero_images': [{"image_id": image.id, "image_url": image.url} for image in
+                                pack.image.filter(is_hero=True)],
+                'slider_images': [{"image_id": image.id, "image_url": image.url} for image in
+                                   pack.image.filter(is_hero=False)],
+                'preview_images': [{"image_id": image.id, "image_url": image.url} for image in
+                                    pack.image.filter(is_preview=True)],
+                'font_types':[{"font_id": font.id, "image_url": font.name} for font in
+                                    pack.font_types.all()],
+                'file_types': [{"title": file.name, "extension": file.extension} for file in
+                               pack.filetypes.all()],
                 'assets': []
             }
 
@@ -585,42 +637,53 @@ def get_packs_by_title_or_tag(request):
 
             packs_data.append(pack_data)
 
-        return JsonResponse({'packs': packs_data,'status':'true'}, status=status.HTTP_200_OK)
+        return JsonResponse({'packs': packs_data, 'status': 'true'}, status=status.HTTP_200_OK)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #@permission_classes([IsAuthenticated])
-@api_view(['GET'])
+@api_view(['POST'])
 def get_assets_by_title_and_tag(request):
-    query = request.GET.get('query', '')
+    try:
+        data = request.data
+        category_id = data.get('category_id', '')
+        query = data.get('query', '')
 
-  
-    all_assets = Asset.objects.filter(
-        Q(name__icontains=query) | Q(tags__name__icontains=query)
-    ).distinct()
-    u=User.objects.first()
-    #assets=all_assets.filter(is_active=True,creator=request.user.id)
-    assets = all_assets.filter(is_active=True)
+        if not category_id:
+            return JsonResponse({'error': 'Category ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    assets_data = []
-    for asset in assets:
-        asset_data = {
-            'id': asset.id,
-            'name': asset.name,
-            'category': asset.category.name,
-            'credits': asset.base_price,
-            'is_free': asset.is_free,
-            'is_active': asset.is_active,
-            'created_at': asset.created_at,
-            'updated_at': asset.updated_at,
-            'tags': [{"tag_id":tag.id,"tag_name":tag.name} for tag in asset.tags.all()],
-            'images': [{"img_id":img.id,"img_url":img.url} for img in asset.image.all()],
-            'asset_file': [{"file_id":file.id,"file_url":file.url} for file in asset.asset_file.all()]
-        }
-        assets_data.append(asset_data)
+        all_assets = Asset.objects.filter(
+            Q(name__icontains=query) | Q(tags__name__icontains=query)
+        ).distinct()
 
-    return JsonResponse({'assets': assets_data,'status':'true'},status=status.HTTP_200_OK)
+        # Filter by category ID
+        category = Category.objects.get(pk=category_id)
+        assets = all_assets.filter(category=category, is_active=True)
+
+        assets_data = []
+        for asset in assets:
+            asset_data = {
+                'id': asset.id,
+                'name': asset.name,
+                'category': asset.category.name,
+                'credits': asset.base_price,
+                'is_free': asset.is_free,
+                'is_active': asset.is_active,
+                'created_at': asset.created_at,
+                'updated_at': asset.updated_at,
+                'tags': [{"tag_id": tag.id, "tag_name": tag.name} for tag in asset.tags.all()],
+                'images': [{"img_id": img.id, "img_url": img.url} for img in asset.image.all()],
+                'asset_file': [{"file_id": file.id, "file_url": file.url} for file in asset.asset_file.all()]
+            }
+            assets_data.append(asset_data)
+
+        return JsonResponse({'assets': assets_data, 'status': 'true'}, status=status.HTTP_200_OK)
+    except Category.DoesNotExist:
+        return JsonResponse({'error': 'Category does not exist', 'status': 'false'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 #@permission_classes([IsAuthenticated])
@@ -849,26 +912,39 @@ def get_tag_and_category(request):
 
 
 #@permission_classes([IsAuthenticated])
-@api_view(['GET'])
+@api_view(['POST'])
 def get_all_assets(request):
-    if request.method == 'GET':
-        # assets=Asset.objects.filter(is_active=True,creator=request.user.id)
-        assets = Asset.objects.filter(is_active=True)
-        u=User.objects.first()
-        all_assets=[]
-        for asset in assets:
-            data={
-                "id":asset.id,
-                "name":asset.name,
-                "category":asset.category.name,
-                "credits":asset.base_price,
-                "hero_images":[{"image_id":image.id,"image_url":image.url } for image in asset.image.all()],
-                "asset_files":[{"file_id":file.id,"file_url":file.url} for file in asset.asset_file.all()],
-                "tags":[{"tag_id":tag.id,"tag_name":tag.name} for tag in asset.tags.all()]
-                
-            }
-            all_assets.append(data)
-        return JsonResponse({'all_assets':all_assets,'status':'true'}, status=status.HTTP_200_OK)
+    if request.method == 'POST':
+        try:
+            data = request.data
+            category_id = data.get('category_id', '')
+
+            if not category_id:
+                return JsonResponse({'error': 'Category ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            category = Category.objects.get(pk=category_id)
+            # assets = Asset.objects.filter(is_active=True, creator=request.user.id, category=category)
+            assets = Asset.objects.filter(is_active=True, category=category)
+
+            all_assets = []
+            for asset in assets:
+                data = {
+                    "id": asset.id,
+                    "name": asset.name,
+                    "category": asset.category.name,
+                    "credits": asset.base_price,
+                    "hero_images": [{"image_id": image.id, "image_url": image.url} for image in asset.image.all()],
+                    "asset_files": [{"file_id": file.id, "file_url": file.url} for file in asset.asset_file.all()],
+                    "tags": [{"tag_id": tag.id, "tag_name": tag.name} for tag in asset.tags.all()]
+                }
+                all_assets.append(data)
+            return JsonResponse({'all_assets': all_assets, 'status': 'true'}, status=status.HTTP_200_OK)
+        except Category.DoesNotExist:
+            return JsonResponse({'error': 'Category does not exist', 'status': 'false'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 
