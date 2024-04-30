@@ -70,8 +70,8 @@ class CreatorRegistrationView(APIView):
             current_site = get_current_site(request)
             domain = current_site.domain
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            verification_url = f'http://localhost:3000{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
-
+            verification_url_with = f'http://localhost:3000{reverse("email_verification", kwargs={"uidb64": uid, "token": token})}'
+            verification_url = verification_url_with.replace('/account', '')
             subject = 'Verify Your Email Address'
             message = f'Hi {user.name},\n\nPlease click the following link to verify your email address:\n{verification_url}'
             email = EmailMessage(subject, message, to=[user.email])
