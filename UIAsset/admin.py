@@ -5,7 +5,7 @@ from .models import *
 # Register your models with all fields displayed.
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at','slug')
+    list_display = ('id','name', 'created_at', 'updated_at','slug')
 
 
 # @admin.register(SubCategory)
