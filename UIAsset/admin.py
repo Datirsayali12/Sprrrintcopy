@@ -112,6 +112,15 @@ class TransactionTypeAdmin(admin.ModelAdmin):
 class PackTransactionAdmin(admin.ModelAdmin):
     list_display = ('credit_amount', 'debit_amount', 'tran_type', 'user', 'pack', 'created_at', 'updated_at')
 
+@admin.register(FontType)
+class FontTypeAdmin(admin.ModelAdmin):
+    list_display = ('id','name')
+
+@admin.register(FileType)
+class FileTypeAdmin(admin.ModelAdmin):
+    list_display = ('id','name')
+
+
 
 admin.site.register(SavedAsset)
 admin.site.register(Subscribe)
