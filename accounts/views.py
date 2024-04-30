@@ -189,22 +189,35 @@ class SendPasswordResetEmailView(APIView):
             serializer.is_valid(raise_exception=True)
             # If serializer is valid, perform the action and return success response
             # For example, sending the password reset email
-            return Response({'message': 'Password Reset link sent. Please check your Email', 'status': 'true'}, status=status.HTTP_200_OK)
+            return Response({'message': 'Password Reset link sent. Please check your Email', 'status': 'true'},
+                            status=status.HTTP_200_OK)
         except serializers.ValidationError as e:
             # Extract blank field errors if any
-            blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
+            blank_fields = [field for field, details in e.get_full_details().items() if
+                            'blank' in details[0]['message']]
+            invalid_email = [field for field, details in e.get_full_details().items() if
+                             'valid email address' in details[0]['message']]
+
             if blank_fields:
-                error_message = " ".join([details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields])
-                return Response({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+                errors = {}
+                for field in blank_fields:
+                    errors[field] = "This field cannot be blank."
+                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+            elif invalid_email:
+                errors = {}
+                for field in invalid_email:
+                    errors[field] = "Please provide a valid email address."
+                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
             else:
                 # Return other validation errors
                 errors = {}
                 for field, details in e.get_full_details().items():
                     errors[field] = details[0]['message']
-                return Response({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             # Handle other unexpected errors
-            return Response({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'message': 'An unexpected error occurred.', 'status': 'false'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserPasswordResetView(APIView):
@@ -221,22 +234,16 @@ class UserPasswordResetView(APIView):
             # Extract blank field errors if any
             blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
             if blank_fields:
-                error_message = " ".join([details[0]['message'] for field, details in e.get_full_details().items() if field in blank_fields])
-                return JsonResponse({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+                errors = {}
+                for field in blank_fields:
+                    errors[field] = " This field cannot be blank."
+                return JsonResponse({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 # Return other validation errors
                 errors = {}
                 for field, details in e.get_full_details().items():
                     errors[field] = details[0]['message']
                 return JsonResponse({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            # Handle other unexpected errors
-            return JsonResponse({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-
-
 
 
 
