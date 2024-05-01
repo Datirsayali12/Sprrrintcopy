@@ -400,6 +400,8 @@ def update_asset(request):
 
             # Update asset fields
             asset.name = data_dict.get('name', asset.name)
+            if Asset.objects.filter(name__iexact=asset.name).exists():
+                return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
             asset.base_price = data_dict.get('credits', asset.base_price)
             # category_id = data_dict.get('category_id', asset.category.id)
             # try:
@@ -416,9 +418,12 @@ def update_asset(request):
             added_tags = data_dict.get('tags_added', [])
             print(added_tags)
             deleted_tags = data_dict.get('tags_deleted', [])
+
             for tag_name in added_tags:
-                tag, _ = Tag.objects.get_or_create(name=tag_name)
+                tag, _ = Tag.objects.get_or_create(name=tag_name.lower())
                 asset.tags.add(tag)
+            asset.save()
+
             for tag_id in deleted_tags:
                 asset.tags.remove(tag_id)
             asset.save()
@@ -785,7 +790,7 @@ def update_pack(request):
         print(deleted_tags)
 
         for tag_name in added_tags:
-            tag, _ = Tag.objects.get_or_create(name=tag_name)
+            tag, _ = Tag.objects.get_or_create(name=tag_name.lower())
             pack.tags.add(tag)
         pack.save()
 
@@ -794,12 +799,42 @@ def update_pack(request):
             pack.tags.remove(tag_id)
         pack.save()
 
-        #add hero images
-        pack_image_objects = []
-        uploaded_files = request.FILES.getlist('hero_images')
-        print(uploaded_files)
 
-        for uploaded_file in uploaded_files:
+        deleted_font_type_ids=data_dict.get('deleted_font_types_ids',[])
+        added_font_types = data_dict.get('font_types', [])
+        for font_type in added_font_types:
+            font, _ = FontType.objects.get_or_create(name=font_type.lower())
+            pack.font_types.add(font)
+        pack.save()
+
+        for font_id in deleted_font_type_ids:
+            pack.font_types.remove(font_id)
+        pack.save()
+
+        filetypes_data = data_dict.get('filetypes', [])
+        for filetype_data in filetypes_data:
+            name = filetype_data.get('name')
+            extension = filetype_data.get('extension')
+            existing_filetype = FileType.objects.filter(extension=extension).first()
+            if existing_filetype:
+                pack.filetypes.add(existing_filetype)
+            else:
+                filetype = FileType.objects.create(name=name, extension=extension)
+                pack.filetypes.add(filetype)
+            pack.save()
+
+        deleted_file_types_id=data_dict.get('deleted_file_types_ids',[])
+        for filetype_id in deleted_file_types_id:
+            pack.filetypes.remove(filetype_id)
+        pack.save()
+
+
+
+        #add hero images
+        pack_hero_images_objects = []
+        hero_images = request.FILES.getlist('hero_images')
+
+        for index, uploaded_file in enumerate(hero_images):
             file_name = generate_unique_filename(uploaded_file.name)
             file_path = os.path.join(settings.MEDIA_ROOT, file_name)
             with open(file_path, 'wb+') as destination:
@@ -807,10 +842,15 @@ def update_pack(request):
                     destination.write(chunk)
 
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            asset_file, _ = Image.objects.get_or_create(url=file_url)
-            pack_image_objects.append(asset_file)
+            image, _ = Image.objects.get_or_create(url=file_url)
+            if index == 0:  # First image
+                image.is_hero = True
+            else:
+                image.is_hero = False
+            image.save()
+            pack_hero_images_objects.append(image)
 
-            pack.image.add(*pack_image_objects)
+            pack.image.add(*pack_hero_images_objects)
             pack.save()
 
             #add preview images
@@ -832,22 +872,22 @@ def update_pack(request):
             pack.save()
 
 
-            #add pack slider images
-            pack_slider_images = []
-            slider_images = request.FILES.getlist('pack_slider_images')
-            for slider_image in slider_images:
-                file_name = generate_unique_filename(slider_image.name)
-                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-                with open(file_path, 'wb+') as destination:
-                    for chunk in slider_image.chunks():
-                        destination.write(chunk)
-                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-                asset_image = Image.objects.create(url=file_url)
-                asset_image.is_hero = False
-                asset_image.save()
-                pack_slider_images.append(asset_image)
-            pack.image.add(*pack_slider_images)
-            pack.save()
+            # #add pack slider images
+            # pack_slider_images = []
+            # slider_images = request.FILES.getlist('pack_slider_images')
+            # for slider_image in slider_images:
+            #     file_name = generate_unique_filename(slider_image.name)
+            #     file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+            #     with open(file_path, 'wb+') as destination:
+            #         for chunk in slider_image.chunks():
+            #             destination.write(chunk)
+            #     file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+            #     asset_image = Image.objects.create(url=file_url)
+            #     asset_image.is_hero = False
+            #     asset_image.save()
+            #     pack_slider_images.append(asset_image)
+            # pack.image.add(*pack_slider_images)
+            # pack.save()
 
             #delete images
             deleted_image_ids = data_dict.get('deleted_image_ids', [])
@@ -876,16 +916,16 @@ def update_pack(request):
         pack.total_assets = total_assets
         pack.save()
 
-        no_of_styles=data_dict.get('no_of_styles')
-        pack.no_of_items=no_of_styles
-        pack.save()
+
 
 
         return JsonResponse({'message': 'Pack updated successfully', 'pack_id': pack.id,'status':'true'},status=status.HTTP_200_OK)
 
     except Pack.DoesNotExist:
         return JsonResponse({'error': 'Pack not found','status':'false'}, status=status.HTTP_404_NOT_FOUND)
-
+    except IntegrityError:
+        return JsonResponse({'error': 'A pack with this name already exists', 'status': 'false'},
+                            status=status.HTTP_400_BAD_REQUEST)
     except ValidationError as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -897,7 +937,7 @@ def update_pack(request):
 @api_view(['GET'])
 def get_tag_and_category(request):
     categories=Category.objects.all()
-    category_names=[{"category_id":i.id, "category_name":i.name} for i in categories]
+    category_names=[{"category_id":i.id, "category_name":i.name.title()} for i in categories]
 
     tags=Tag.objects.all()
     tag_names=[{"tag_id":i.id, "tag_names":i.name} for i in tags]

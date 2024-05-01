@@ -142,7 +142,7 @@ class Asset(models.Model):
         super().save(*args, **kwargs)
 
 class Pack(models.Model):
-    name= models.CharField(max_length=255, help_text="this will store product title")
+    name= models.CharField(unique=True,max_length=255, help_text="this will store product title")
     #credits = models.IntegerField(default=0,help_text="this for credits")
     creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 help_text="this for creator of product")
