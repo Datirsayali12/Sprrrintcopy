@@ -72,18 +72,26 @@ def upload_asset(request):
                     for chunk in uploaded_file.chunks():
                         destination.write(chunk)
 
-                # check if file is zip or not
-                if not file_name.endswith(".zip"):
-                    file_name = os.path.splitext(file_name)[0]
+                # Check if the uploaded file is not a zip file
+                if not uploaded_file.name.endswith(".zip"):
+                    # Generate a unique zip file name based on the uploaded file name
+                    zip_file_name = f"{os.path.splitext(file_name)[0]}.zip"
+                    zip_file_path = os.path.join(settings.MEDIA_ROOT, zip_file_name)
 
-                zip_file_path = os.path.join(settings.MEDIA_ROOT, f"{file_name}.zip")
-                with ZipFile(zip_file_path, 'w') as zipf:
-                    zipf.write(file_path, arcname=os.path.basename(file_name))
+                    # Create a zip file containing the uploaded file
+                    with ZipFile(zip_file_path, 'w') as zipf:
+                        zipf.write(file_path, arcname=os.path.basename(file_name))
 
-                file_name += ".zip"
+                    # Update the file name to the name of the generated zip file
+                    file_name = zip_file_name
+
+                # Create AssetType object for zip file
                 asset_type, _ = AssetType.objects.get_or_create(name=".zip")
 
+                # Build the file URL
                 file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+
+                # Create AssetFile object and append it to file_objects list
                 asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
                 file_objects.append(asset_file)
 
