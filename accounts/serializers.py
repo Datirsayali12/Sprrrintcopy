@@ -125,7 +125,7 @@ class UserChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"non_field_errors": "Incorrect old password"})
 
         if old_password == new_password:
-            raise serializers.ValidationError({"non_field_errors": "New password must be different from the old password"})
+            raise serializers.ValidationError({"new_password": "New password must be different from the old password"})
 
         user.set_password(new_password)
         user.save()

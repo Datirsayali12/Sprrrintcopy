@@ -164,7 +164,7 @@ class UserChangePasswordView(APIView):
         try:
             serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
             serializer.is_valid(raise_exception=True)
-            return Response({'message': 'Password Changed Successfully','status':"true"}, status=status.HTTP_200_OK)
+            return Response({'message': 'Password Changed Successfully', 'status': 'true'}, status=status.HTTP_200_OK)
         except serializers.ValidationError as e:
             # Extract blank field errors if any
             blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
@@ -173,9 +173,10 @@ class UserChangePasswordView(APIView):
                 return Response({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 # Return appropriate error message
-                if 'non_field_errors' in e.get_codes():
+                error_codes = e.get_codes()
+                if 'non_field_errors' in error_codes:
                     error_message = 'Incorrect old password.'
-                elif 'new_password' in e.get_codes():
+                elif 'new_password' in error_codes:
                     error_message = 'New password must be different from the old password.'
                 else:
                     error_message = e.detail
