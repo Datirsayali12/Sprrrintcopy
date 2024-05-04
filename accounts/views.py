@@ -156,7 +156,6 @@ class UserProfileView(APIView):
     serializer = UserProfileSerializer(request.user)
     return JsonResponse({'data': serializer.data, 'status': 'true'}, status=status.HTTP_200_OK)
 
-
 class UserChangePasswordView(APIView):
     renderer_classes = [UserRenderer]  # Assuming UserRenderer is defined elsewhere
     permission_classes = [IsAuthenticated]
@@ -165,16 +164,23 @@ class UserChangePasswordView(APIView):
         try:
             serializer = UserChangePasswordSerializer(data=request.data, context={'user': request.user})
             serializer.is_valid(raise_exception=True)
-            return Response({'msg': 'Password Changed Successfully'}, status=status.HTTP_200_OK)
+            return Response({'message': 'Password Changed Successfully','status':"true"}, status=status.HTTP_200_OK)
         except serializers.ValidationError as e:
-            # Check if any field is blank
-            blank_fields = {field: "This field may not be blank." for field, details in e.get_full_details().items() if 'blank' in details[0]['message']}
+            # Extract blank field errors if any
+            blank_fields = [field for field, details in e.get_full_details().items() if 'blank' in details[0]['message']]
             if blank_fields:
-                return Response({'message': blank_fields, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+                error_message = {field: "This field may not be blank." for field in blank_fields}
+                return Response({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
             else:
-                # Return other validation errors
-                errors = {field: details[0]['message'] for field, details in e.get_full_details().items()}
-                return Response({'message': errors, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+                # Return appropriate error message
+                if 'non_field_errors' in e.get_codes():
+                    error_message = 'Incorrect old password.'
+                elif 'new_password' in e.get_codes():
+                    error_message = 'New password must be different from the old password.'
+                else:
+                    error_message = e.detail
+
+                return Response({'message': error_message, 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             # Handle other unexpected errors
             return Response({'message': 'An unexpected error occurred.', 'status': 'false'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
