@@ -30,10 +30,6 @@ def upload_asset(request):
         try:
             asset_name = data_dict.get('name')
 
-            # Check if asset with the same name exists
-            if Asset.objects.filter(name__iexact=asset_name).exists():
-                return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
-
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
 
@@ -408,8 +404,7 @@ def update_asset(request):
 
             # Update asset fields
             asset.name = data_dict.get('name', asset.name)
-            if Asset.objects.filter(name__iexact=asset.name).exists():
-                return JsonResponse({'error': 'Asset with this name already exists.', 'status': 'false'}, status=status.HTTP_400_BAD_REQUEST)
+
             asset.base_price = data_dict.get('credits', asset.base_price)
             # category_id = data_dict.get('category_id', asset.category.id)
             # try:
