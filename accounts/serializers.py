@@ -105,13 +105,47 @@ class UserLoginSerializer(serializers.ModelSerializer):
         model = User
         fields = ['email', 'password']
 
+#--------------------------------------------------------------
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'email', 'name']
+        fields = ['id', 'email', 'name', 'is_creator', 'is_customer', 'email_verified']
 
+class CreatorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Creator
+        fields = ['profile_pic', 'terms_and_condition']
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    roles = serializers.SerializerMethodField()
+    profile_pic = serializers.SerializerMethodField()
+    terms_and_condition = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'name', 'is_creator', 'is_customer', 'email_verified', 'roles', 'profile_pic', 'terms_and_condition']
+
+    def get_roles(self, obj):
+        roles = []
+        if obj.is_creator:
+            roles.append('creator')
+        if obj.is_customer:
+            roles.append('customer')
+        return roles
+
+    def get_profile_pic(self, obj):
+        if obj.is_creator:
+            creator_instance = Creator.objects.get(user=obj)
+            return creator_instance.profile_pic
+        return None
+
+    def get_terms_and_condition(self, obj):
+        if obj.is_creator:
+            creator_instance = Creator.objects.get(user=obj)
+            return creator_instance.terms_and_condition
+        return None
+#============================================
 class UserChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(max_length=255, style={'input_type': 'password'}, write_only=True)
     new_password = serializers.CharField(max_length=255, style={'input_type': 'password'}, write_only=True)

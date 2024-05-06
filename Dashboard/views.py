@@ -26,9 +26,14 @@ def upload_asset(request):
     if request.method == 'POST':
         data = request.data.get('data')
         data_dict = json.loads(data)
+        u = User.objects.first()
 
         try:
             asset_name = data_dict.get('name')
+            existing_asset = Asset.objects.filter(creator=u, name=asset_name).exists()
+            if existing_asset:
+                return JsonResponse({'error': f'Asset with name "{asset_name}" already exists'},
+                                    status=status.HTTP_400_BAD_REQUEST)
 
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
@@ -92,7 +97,7 @@ def upload_asset(request):
                 file_objects.append(asset_file)
 
             # asset creation
-            u=User.objects.first()
+
             is_free = data_dict.get('is_free', False)
 
             asset = Asset.objects.create(
