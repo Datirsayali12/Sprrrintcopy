@@ -396,7 +396,7 @@ def update_asset(request):
             asset_id = data_dict.get('asset_id')
 
             if not asset_id:
-                return JsonResponse({'error': 'Pack ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({'error': 'asset ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
 
             files = request.FILES.getlist('asset_files')
@@ -407,7 +407,7 @@ def update_asset(request):
 
             asset = Asset.objects.get(pk=asset_id)
 
-            # Update asset fields
+            # Update asset fields 
             asset.name = data_dict.get('name', asset.name)
 
             asset.base_price = data_dict.get('credits', asset.base_price)
@@ -792,19 +792,28 @@ def update_pack(request):
                 pass
         pack.save()
 
-        #add tags
+        # #add tags
+        # added_tags = data_dict.get('tags_added', [])
+        # deleted_tags = data_dict.get('tags_deleted', [])
+        # print(deleted_tags)
+        #
+        # for tag_name in added_tags:
+        #     tag, _ = Tag.objects.get_or_create(name=tag_name.lower())
+        #     pack.tags.add(tag)
+        # pack.save()
+        #
+        # #delete tags
+        # for tag_id in deleted_tags:
+        #     pack.tags.remove(tag_id)
+        # pack.save()
+
         added_tags = data_dict.get('tags_added', [])
-        deleted_tags = data_dict.get('tags_deleted', [])
-        print(deleted_tags)
-
         for tag_name in added_tags:
-            tag, _ = Tag.objects.get_or_create(name=tag_name.lower())
-            pack.tags.add(tag)
-        pack.save()
+            tag, created = Tag.objects.get_or_create(name=tag_name.lower())
+            if tag not in pack.tags.all():  # Check if the tag is not already added to avoid duplicates
+                pack.tags.add(tag)
 
-        #delete tags
-        for tag_id in deleted_tags:
-            pack.tags.remove(tag_id)
+        # Save the changes
         pack.save()
 
 
