@@ -277,13 +277,14 @@ def upload_pack(request):
         #     asset_image.save()
         #     pack_slider_images.append(asset_image)
 
-
-
+        # Associate asset files with the pack
         #pack creation
         is_free = data_dict['is_free']
         name = data_dict.get('name')
         if Pack.objects.filter(name=name).exists():
             return JsonResponse({'error': 'A pack with this title already exists','status':'false'}, status=status.HTTP_400_BAD_REQUEST)
+
+
         user=User.objects.first()
         pack = Pack(
             name=data_dict.get('name'),
@@ -294,6 +295,72 @@ def upload_pack(request):
             is_free=is_free
         )
         pack.save()
+
+        # Loop through uploaded asset files
+        asset_file_type = data_dict.get('asset_file_type')
+        asset_files = request.FILES.getlist('asset_files')
+        file_objects = []
+
+        for uploaded_file in asset_files:
+            asset_file_name=uploaded_file.name.split('.')[0]
+            file_name = generate_unique_filename(uploaded_file.name)
+            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+
+            # Save the uploaded file
+            with open(file_path, 'wb+') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+
+            # Check if the uploaded file is not a zip file
+            if not uploaded_file.name.endswith(".zip"):
+                # Generate a unique zip file name based on the uploaded file name
+                zip_file_name = f"{os.path.splitext(file_name)[0]}.zip"
+                zip_file_path = os.path.join(settings.MEDIA_ROOT, zip_file_name)
+
+                # Create a zip file containing the uploaded file
+                with ZipFile(zip_file_path, 'w') as zipf:
+                    zipf.write(file_path, arcname=os.path.basename(file_name))
+
+                # Update the file name to the name of the generated zip file
+                file_name = zip_file_name
+
+            # Create AssetType object for zip file
+            asset_type, _ = AssetType.objects.get_or_create(name=".zip")
+
+            # Build the file URL
+            file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+
+            # Check category ID
+            category_id = data_dict.get('category_id')
+
+            # Check if category ID exists and get category name
+            if category_id:
+                category_name = Category.objects.get(id=category_id).name
+
+                # Check if category name is "UI kits and templates"
+                if category_name == "UI kits and templates":
+                    asset_file_type = data_dict.get('asset_file_type')
+                    asset_file_name = asset_file_type
+                else:
+                    # Use the actual file name as asset name
+                    asset_file_name = uploaded_file.name.split('.')[0]
+
+            # Create AssetType object for zip file
+            asset_type, _ = AssetType.objects.get_or_create(name=".zip")
+
+            # Create AssetFile object
+            asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
+
+            # Create Asset object and associate AssetFile with it
+            asset = Asset.objects.create(name=asset_file_name, creator=pack.creator, category=pack.category)
+            asset.asset_file.add(asset_file)
+
+            # Add Asset to the pack
+            pack.assets.add(asset)
+
+        # Save the pack
+        pack.save()
+
 
         #add assets in pack
         asset_ids = data_dict.get('asset_ids', [])
@@ -887,6 +954,8 @@ def update_pack(request):
                 preview_images_objects.append(image)
             pack.image.add(*preview_images_objects)
             pack.save()
+
+            asset_files = request.FILES.getlist('asset_files')
 
 
             # #add pack slider images
