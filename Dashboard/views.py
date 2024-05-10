@@ -338,7 +338,7 @@ def upload_pack(request):
                 category_name = Category.objects.get(id=category_id).name
 
                 # Check if category name is "UI kits and templates"
-                if category_name == "UI kits and templates":
+                if category_name == "ui kits and templates":
                     asset_file_type = data_dict.get('asset_file_type')
                     asset_file_name = asset_file_type
                 else:
