@@ -297,7 +297,7 @@ def upload_pack(request):
         pack.save()
 
         # Loop through uploaded asset files
-        asset_file_type = data_dict.get('asset_file_type')
+
         asset_files = request.FILES.getlist('asset_files')
         file_objects = []
 
@@ -354,6 +354,7 @@ def upload_pack(request):
             # Create Asset object and associate AssetFile with it
             asset = Asset.objects.create(name=asset_file_name, creator=pack.creator, category=pack.category)
             asset.asset_file.add(asset_file)
+            asset.save()
 
             # Add Asset to the pack
             pack.assets.add(asset)
@@ -883,17 +884,13 @@ def update_pack(request):
         # Save the changes
         pack.save()
 
+        font_types = data_dict.get('font_types_added', [])
+        for font_type in font_types:
+            type, created = FontType.objects.get_or_create(name=font_type.lower())
+            if type not in pack.font_types.all():  # Check if the tag is not already added to avoid duplicates
+                pack.font_types.add(type)
 
-        deleted_font_type_ids=data_dict.get('deleted_font_types_ids',[])
-        added_font_types = data_dict.get('font_types', [])
-        for font_type in added_font_types:
-            font, _ = FontType.objects.get_or_create(name=font_type.lower())
-            pack.font_types.add(font)
-        pack.save()
 
-        for font_id in deleted_font_type_ids:
-            pack.font_types.remove(font_id)
-        pack.save()
 
         filetypes_data = data_dict.get('filetypes', [])
         for filetype_data in filetypes_data:
@@ -907,10 +904,10 @@ def update_pack(request):
                 pack.filetypes.add(filetype)
             pack.save()
 
-        deleted_file_types_id=data_dict.get('deleted_file_types_ids',[])
-        for filetype_id in deleted_file_types_id:
-            pack.filetypes.remove(filetype_id)
-        pack.save()
+        # deleted_file_types_id=data_dict.get('deleted_file_types_ids',[])
+        # for filetype_id in deleted_file_types_id:
+        #     pack.filetypes.remove(filetype_id)
+        # pack.save()
 
 
 
@@ -956,24 +953,69 @@ def update_pack(request):
             pack.save()
 
             asset_files = request.FILES.getlist('asset_files')
+            file_objects = []
+
+            for uploaded_file in asset_files:
+                asset_file_name = uploaded_file.name.split('.')[0]
+                file_name = generate_unique_filename(uploaded_file.name)
+                file_path = os.path.join(settings.MEDIA_ROOT, file_name)
+
+                # Save the uploaded file
+                with open(file_path, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+
+                # Check if the uploaded file is not a zip file
+                if not uploaded_file.name.endswith(".zip"):
+                    # Generate a unique zip file name based on the uploaded file name
+                    zip_file_name = f"{os.path.splitext(file_name)[0]}.zip"
+                    zip_file_path = os.path.join(settings.MEDIA_ROOT, zip_file_name)
+
+                    # Create a zip file containing the uploaded file
+                    with ZipFile(zip_file_path, 'w') as zipf:
+                        zipf.write(file_path, arcname=os.path.basename(file_name))
+
+                    # Update the file name to the name of the generated zip file
+                    file_name = zip_file_name
+
+                # Create AssetType object for zip file
+                asset_type, _ = AssetType.objects.get_or_create(name=".zip")
+
+                # Build the file URL
+                file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
+
+                # Check category ID
+                category_id = data_dict.get('category_id')
+
+                # Check if category ID exists and get category name
+                if category_id:
+                    category_name = Category.objects.get(id=category_id).name
+
+                    # Check if category name is "UI kits and templates"
+                    if category_name == "ui kits and templates":
+                        asset_file_type = data_dict.get('asset_file_type')
+                        asset_file_name = asset_file_type
+                    else:
+                        # Use the actual file name as asset name
+                        asset_file_name = uploaded_file.name.split('.')[0]
+
+                # Create AssetType object for zip file
+                asset_type, _ = AssetType.objects.get_or_create(name=".zip")
 
 
-            # #add pack slider images
-            # pack_slider_images = []
-            # slider_images = request.FILES.getlist('pack_slider_images')
-            # for slider_image in slider_images:
-            #     file_name = generate_unique_filename(slider_image.name)
-            #     file_path = os.path.join(settings.MEDIA_ROOT, file_name)
-            #     with open(file_path, 'wb+') as destination:
-            #         for chunk in slider_image.chunks():
-            #             destination.write(chunk)
-            #     file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
-            #     asset_image = Image.objects.create(url=file_url)
-            #     asset_image.is_hero = False
-            #     asset_image.save()
-            #     pack_slider_images.append(asset_image)
-            # pack.image.add(*pack_slider_images)
-            # pack.save()
+                asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
+
+                if Asset.objects.filter(name=asset_file_name).exists():
+                    pass
+                else:
+                    asset = Asset.objects.create(name=asset_file_name, creator=pack.creator, category=pack.category)
+                    asset.asset_file.add(asset_file)
+                    asset.save()
+
+            # Save the pack
+            pack.save()
+
+
 
             #delete images
             deleted_image_ids = data_dict.get('deleted_image_ids', [])
@@ -1017,6 +1059,9 @@ def update_pack(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
 
 
 #@permission_classes([IsAuthenticated])
