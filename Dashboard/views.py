@@ -123,6 +123,18 @@ def upload_asset(request):
                 asset.tags.add(tag)
             asset.save()
 
+            filetypes_data = data_dict.get('filetypes', [])
+            for filetype_data in filetypes_data:
+                name = filetype_data.get('name')
+                extension = filetype_data.get('extension')
+                existing_filetype = FileType.objects.filter(extension=extension).first()
+                if existing_filetype:
+                    asset.filetypes.add(existing_filetype)
+                else:
+                    filetype = FileType.objects.create(name=name, extension=extension)
+                    asset.filetypes.add(filetype)
+                asset.save()
+
             return JsonResponse({'message': 'Asset uploaded successfully.', 'status': 'true', 'asset_id': asset.id}, status=status.HTTP_201_CREATED)
 
         except DjangoValidationError as e:
@@ -296,6 +308,11 @@ def upload_pack(request):
         )
         pack.save()
 
+        is_uikits = data_dict.get('is_uikits')
+        pack.is_uikits = is_uikits
+        pack.save()
+
+
         # Loop through uploaded asset files
 
         asset_files = request.FILES.getlist('asset_files')
@@ -313,53 +330,41 @@ def upload_pack(request):
 
             # Check if the uploaded file is not a zip file
             if not uploaded_file.name.endswith(".zip"):
-                # Generate a unique zip file name based on the uploaded file name
                 zip_file_name = f"{os.path.splitext(file_name)[0]}.zip"
                 zip_file_path = os.path.join(settings.MEDIA_ROOT, zip_file_name)
 
-                # Create a zip file containing the uploaded file
+
                 with ZipFile(zip_file_path, 'w') as zipf:
                     zipf.write(file_path, arcname=os.path.basename(file_name))
-
-                # Update the file name to the name of the generated zip file
                 file_name = zip_file_name
 
-            # Create AssetType object for zip file
+
             asset_type, _ = AssetType.objects.get_or_create(name=".zip")
 
-            # Build the file URL
             file_url = request.build_absolute_uri(os.path.join(settings.MEDIA_URL, file_name))
 
-            # Check category ID
             category_id = data_dict.get('category_id')
 
-            # Check if category ID exists and get category name
             if category_id:
                 category_name = Category.objects.get(id=category_id).name
-
-                # Check if category name is "UI kits and templates"
                 if category_name == "ui kits and templates":
                     asset_file_type = data_dict.get('asset_file_type')
                     asset_file_name = asset_file_type
                 else:
-                    # Use the actual file name as asset name
                     asset_file_name = uploaded_file.name.split('.')[0]
-
-            # Create AssetType object for zip file
             asset_type, _ = AssetType.objects.get_or_create(name=".zip")
 
-            # Create AssetFile object
             asset_file = AssetFile.objects.create(url=file_url, asset_type=asset_type)
 
-            # Create Asset object and associate AssetFile with it
+
             asset = Asset.objects.create(name=asset_file_name, creator=pack.creator, category=pack.category)
             asset.asset_file.add(asset_file)
             asset.save()
 
-            # Add Asset to the pack
+
             pack.assets.add(asset)
 
-        # Save the pack
+
         pack.save()
 
 
@@ -378,17 +383,21 @@ def upload_pack(request):
             pack.tags.add(tag)
         pack.save()
 
+        #add font_types i.e sans-serief
         font_types = data_dict.get('font_types', [])
         for font_type in font_types:
             font, _ = FontType.objects.get_or_create(name=font_type.lower())
             pack.font_types.add(font)
         pack.save()
 
+        #preview images
         if category.name.lower() == 'fonts':
             preview_images = request.FILES.getlist('preview_images')
             pack.total_assets = len(preview_images)
         else:
             pack.total_assets = 0
+
+
 
         pack.image.add(*pack_hero_images_objects)
         pack.save()
@@ -597,8 +606,10 @@ def get_all_packs(request):
         if not category_id:
             return JsonResponse({'error': 'Category ID is required in the request data'},
                                 status=status.HTTP_400_BAD_REQUEST)
+
         category = Category.objects.get(pk=category_id)
-        packs= Pack.objects.filter(category=category, is_active=True)
+        packs = Pack.objects.filter(category=category, is_active=True)
+        category_name = category.name
 
         packs_data = []
         for pack in packs:
@@ -607,7 +618,6 @@ def get_all_packs(request):
             pack_info = {
                 'id': pack.id,
                 'title': pack.name,
-                #'creator': pack.u.id,
                 'category': pack.category.name,
                 'credits': pack.base_price,
                 'is_free': pack.is_free,
@@ -618,14 +628,12 @@ def get_all_packs(request):
                 'hero_images': [{"image_id": image.id, "image_url": image.url} for image in
                                 pack.image.filter(is_hero=True)],
                 'slider_images': [{"image_id": image.id, "image_url": image.url} for image in
-                                   pack.image.filter(is_hero=False)],
+                                  pack.image.filter(is_hero=False)],
                 'preview_images': [{"image_id": image.id, "image_url": image.url} for image in
-                                    pack.image.filter(is_preview=True)],
-                'font_types':[{"font_id": font.id, "image_url": font.name} for font in
-                                    pack.font_types.all()],
+                                   pack.image.filter(is_preview=True)],
+                'font_types': [{"font_id": font.id, "image_url": font.name} for font in pack.font_types.all()],
                 'file_types': [{"title": file.name, "extension": file.extension} for file in
                                pack.filetypes.all()],
-
                 'assets': []
             }
 
@@ -645,15 +653,18 @@ def get_all_packs(request):
                 }
                 pack_info['assets'].append(asset_data)
 
+            if category_name == "ui kits and templates":
+                pack_info['is_uikits'] = pack.is_uikits
+
             packs_data.append(pack_info)
 
         return JsonResponse({'packs': packs_data, 'status': 'true'}, status=status.HTTP_200_OK)
+
     except Category.DoesNotExist:
         return JsonResponse({'error': 'Category does not exist', 'status': 'false'}, status=status.HTTP_404_NOT_FOUND)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
   # packs = Pack.objects.filter(is_active=True,creator=request.user)
 #@permission_classes([IsAuthenticated])
@@ -836,6 +847,11 @@ def update_pack(request):
         # pack.category = category
         is_free= data_dict.get('is_free', False)
         pack.is_free=is_free
+
+
+        is_uikits=data_dict.get('ui_kits',False)
+        pack.is_uikits=is_uikits
+        pack.save()
 
         #add assets
         asset_ids = data_dict.get('asset_ids', [])
@@ -1106,7 +1122,9 @@ def get_all_assets(request):
                     "credits": asset.base_price,
                     "hero_images": [{"image_id": image.id, "image_url": image.url} for image in asset.image.all()],
                     "asset_files": [{"file_id": file.id, "file_url": file.url} for file in asset.asset_file.all()],
-                    "tags": [{"tag_id": tag.id, "tag_name": tag.name} for tag in asset.tags.all()]
+                    "file_types":[{"title": file.name, "extension": file.extension} for file in asset.filetypes.all()],
+                    "tags": [{"tag_id": tag.id, "tag_name": tag.name} for tag in asset.tags.all()],
+
                 }
                 all_assets.append(data)
             return JsonResponse({'all_assets': all_assets, 'status': 'true'}, status=status.HTTP_200_OK)

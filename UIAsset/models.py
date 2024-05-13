@@ -135,6 +135,7 @@ class Asset(models.Model):
     image= models.ManyToManyField(Image,help_text="for thumbnail images")
     base_price=models.IntegerField(default=0,help_text="this for base price")
     discount_price=models.IntegerField(default=0,help_text="this for discount price")
+    filetypes = models.ManyToManyField(FileType, help_text="for all filetypes that related to assets")
     slug = AutoSlugField(populate_from='name')
 
     def save(self, *args, **kwargs):
@@ -162,6 +163,7 @@ class Pack(models.Model):
     assets=models.ManyToManyField(Asset,help_text="for all assets file that related to product")
     filetypes=models.ManyToManyField(FileType,help_text="for all filetypes that related to product")
     font_types=models.ManyToManyField(FontType,help_text="for all fonttypes that related to product")
+    is_uikits = models.BooleanField(default=False,null=True)
     slug = AutoSlugField(populate_from='name')
 
     def save(self, *args, **kwargs):
