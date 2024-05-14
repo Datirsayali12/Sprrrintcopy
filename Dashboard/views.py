@@ -634,6 +634,7 @@ def get_all_packs(request):
                 'is_active': pack.is_active,
                 'created_at': pack.created_at,
                 'updated_at': pack.updated_at,
+                'is_uikits':pack.is_uikits,
                 'tags': [{"name": tag.name, "tag_id": tag.id} for tag in pack.tags.all()],
                 'hero_images': [{"image_id": image.id, "image_url": image.url} for image in
                                 pack.image.filter(is_hero=True)],
@@ -662,9 +663,6 @@ def get_all_packs(request):
                     'asset_file': [{"file_id": file.id, "file_url": file.url} for file in asset.asset_file.all()]
                 }
                 pack_info['assets'].append(asset_data)
-
-            if category_name == "ui kits and templates":
-                pack_info['is_uikits'] = pack.is_uikits
 
             packs_data.append(pack_info)
 
