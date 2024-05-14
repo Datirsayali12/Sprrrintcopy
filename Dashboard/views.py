@@ -29,11 +29,9 @@ def upload_asset(request):
         u = User.objects.first()
 
         try:
-            asset_name = data_dict.get('name')
-            existing_asset = Asset.objects.filter(creator=u, name=asset_name).exists()
-            if existing_asset:
-                return JsonResponse({'error': f'Asset with name "{asset_name}" already exists'},
-                                    status=status.HTTP_400_BAD_REQUEST)
+            asset_name = data_dict.get('name').strip()
+            if not asset_name:
+                return JsonResponse({'error': 'Asset name cannot be blank'}, status=status.HTTP_400_BAD_REQUEST)
 
             files = request.FILES.getlist('asset_files')
             images = request.FILES.getlist('thumbnail_images')
@@ -41,7 +39,7 @@ def upload_asset(request):
             # check required fields
             required_fields = ['name', 'category_id', 'credits']
             for field in required_fields:
-                if field not in data_dict or not data_dict[field]:
+                if field not in data_dict or not data_dict[field] :
                     return JsonResponse({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
@@ -75,15 +73,10 @@ def upload_asset(request):
 
                 # Check if the uploaded file is not a zip file
                 if not uploaded_file.name.endswith(".zip"):
-                    # Generate a unique zip file name based on the uploaded file name
                     zip_file_name = f"{os.path.splitext(file_name)[0]}.zip"
                     zip_file_path = os.path.join(settings.MEDIA_ROOT, zip_file_name)
-
-                    # Create a zip file containing the uploaded file
                     with ZipFile(zip_file_path, 'w') as zipf:
                         zipf.write(file_path, arcname=os.path.basename(file_name))
-
-                    # Update the file name to the name of the generated zip file
                     file_name = zip_file_name
 
                 # Create AssetType object for zip file
@@ -215,6 +208,10 @@ def upload_pack(request):
         slider_images = request.FILES.getlist('slider_images')
         print(slider_images)
 
+        pack_name = data_dict.get('name').strip()
+        if not pack_name:
+            return JsonResponse({'error': 'Pack name cannot be blank'}, status=status.HTTP_400_BAD_REQUEST)
+
         required_fields = ['name', 'category_id', 'credits', 'tags', 'is_free']
         for field in required_fields:
             if field not in data_dict:
@@ -314,6 +311,7 @@ def upload_pack(request):
 
 
         # Loop through uploaded asset files
+
 
         asset_files = request.FILES.getlist('asset_files')
         file_objects = []
@@ -553,6 +551,18 @@ def update_asset(request):
             asset.save()
             asset.asset_file.add(*file_objects)
             asset.save()
+
+            filetypes_data = data_dict.get('filetypes', [])
+            for filetype_data in filetypes_data:
+                name = filetype_data.get('name')
+                extension = filetype_data.get('extension')
+                existing_filetype = FileType.objects.filter(extension=extension).first()
+                if existing_filetype:
+                    asset.filetypes.add(existing_filetype)
+                else:
+                    filetype = FileType.objects.create(name=name, extension=extension)
+                    asset.filetypes.add(filetype)
+                asset.save()
 
             #delete thumbnail images
             deleted_image_ids = data_dict.get('deleted_thumbnail_images_ids ', [])
@@ -849,7 +859,7 @@ def update_pack(request):
         pack.is_free=is_free
 
 
-        is_uikits=data_dict.get('ui_kits',False)
+        is_uikits=data_dict.get('is_uikits',None)
         pack.is_uikits=is_uikits
         pack.save()
 
