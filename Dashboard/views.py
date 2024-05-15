@@ -37,7 +37,7 @@ def upload_asset(request):
             images = request.FILES.getlist('thumbnail_images')
 
             # check required fields
-            required_fields = ['name', 'category_id', 'credits']
+            required_fields = ['name', 'category_id']
             for field in required_fields:
                 if field not in data_dict or not data_dict[field] :
                     return JsonResponse({'error': f'{field} is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -96,7 +96,7 @@ def upload_asset(request):
             asset = Asset.objects.create(
                 name=asset_name,
                 creator=u,
-                base_price=data_dict.get('credits'),
+                base_price=data_dict.get('credits',0),
                 category=category,
                 is_free=is_free
             )
@@ -345,10 +345,7 @@ def upload_pack(request):
 
             if category_id:
                 category_name = Category.objects.get(id=category_id).name
-                if category_name == "ui kits and templates":
-                    asset_file_type = data_dict.get('asset_file_type')
-                    asset_file_name = asset_file_type
-                else:
+                if category_name == "fonts":
                     asset_file_name = uploaded_file.name.split('.')[0]
             asset_type, _ = AssetType.objects.get_or_create(name=".zip")
 
